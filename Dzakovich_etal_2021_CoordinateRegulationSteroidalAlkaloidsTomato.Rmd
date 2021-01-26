@@ -1,0 +1,1615 @@
+---
+title: "Biosynthesis of Steroidal Alkaloids Are Coordinately Regulated and Differ among Tomatoes in the Red-Fruited Clade, analysis code"
+author: "Michael Dzakovich, David Francis, Jessica Cooperstone"
+date: "A lot of times"
+output:  
+  html_document:  
+    toc: true  
+    toc_float: true
+    toc_depth: 3
+    theme: lumen
+    code_download: true
+---
+
+# Introduction
+
+Biosynthesis of Steroidal Alkaloids Are Coordinately Regulated and Differ among Tomatoes in the Red-Fruited Clade
+
+Michael P. Dzakovich1, David M. Francis2, and Jessica L. Cooperstone1,3\*
+
+1 Department of Horticulture and Crop Science, The Ohio State University, 2001 Fyffe Court, Columbus, OH 43210
+
+2 Department of Horticulture and Crop Science, The Ohio State University/Ohio Agricultural Research and Development Center, 1680 Madison Ave., Wooster, OH 44691
+
+3 Department of Food Science and Technology, The Ohio State University, 2015 Fyffe Court., Columbus, OH 43210 \*Corresponding author ([cooperstone.1\@osu.edu](mailto:cooperstone.1@osu.edu){.email})
+
+You can find all the code used to conduct the analyses and create visualizations found in the above paper (and also a number that are not in the paper but relevant). We hope this is helpful!
+
+This work is publicly available as a pre-print on bioRxiv <https://www.biorxiv.org/content/10.1101/2021.01.06.425594v1>, and currently undergoing peer review.
+
+# Load libraries
+
+```{r, message = FALSE}
+library(tidyverse) # for wrangling and ggplotting
+library(ggrepel) # for repelling text labels
+library(readxl) # for reading in excel files
+library(scales) # for adjusting comma formatting in axes
+library(FactoMineR) # for PCA
+library(factoextra) # for PCA
+library(patchwork) # for multi-panel plot arranging
+library(ggdendro) # for making nicer looking dendrograms for hierarchical clustering
+library(here) # for directory management
+library(knitr) # for knitting and kable()
+library(plotly) # for interactive plots
+library(corrplot) # for correlation plots
+library(ggcorrplot) # for gg correlation plots
+```
+
+# Boxplots
+
+Creating one, faceted boxplot to show concentrations of all ten alkaloids (dehydromtomatidine, tomatidine, dehydrotomatine, alpha-tomatine, hydroxytomatine, acetoxytomatine, dehydrolycoperosid/F/G/dehydrescueloside A, lycoperoside F/G/escueloside A, escueloside B and total alkaloids) separated by tomato class (cultivated processing, cultivated cherry, wide-cross hybrid, wild cherry, S. pimpinellifolium).
+
+### Read in data
+
+```{r}
+Alkaloids_raw <- read_excel("SteroidalAlkaloidsSupplementalData.xlsx",
+                            sheet = "Raw Data Diversity Panel")
+
+# what are the dimensions of this data?
+dim(Alkaloids_raw)
+
+# what is the structure of this dataframe?
+str(Alkaloids_raw)
+```
+
+# Wrangling
+
+## Setting Class as factor
+
+Changing levels in Class so that plots go, left to right: Cultivated Processing, Cultivated Cherry, Wide Cross Hybrid, Wild Cherry, S. pimpinellifolium (from most cultivated, to most wild).
+
+```{r}
+Alkaloids_raw$Class <- factor(Alkaloids_raw$Class, 
+                              levels = c("Cultivated Processing", 
+                                         "Cultivated Cherry", 
+                                         "Wide Cross Hybrid",
+                                         "Wild Cherry",
+                                         "S. pimpinellifolium"))
+```
+
+I want to make one boxplot, with alkaloid concentration on the y, and tomato class on the x, that is faceted by alkaloid (i.e., one plot per alkaloid).
+
+## Create tidy data
+
+To do this, we need to data wrangle and convert from wide to long (tidying).
+
+```{r}
+# check structure
+str(Alkaloids_raw)
+
+# select only the columns we want
+Alkaloids_raw_trim <- Alkaloids_raw %>%
+  select(Genotype, Class, 
+         Dehydrotomatidine, Tomatidine, TotalDehydrotomatine, Tomatine, 
+         TotalHydroxytomatine, TotalAcetoxytomatine, DehydrolycoperosideFGdehydroesculeosideA, 
+         TotalLycoperosideFGEsculeosideA, TotalEsculeosideB, Total)
+
+# go from wide to long
+Alkaloids_tidy <- Alkaloids_raw_trim %>%
+  pivot_longer(cols = Dehydrotomatidine:Total,
+                names_to = "Alkaloid",
+                values_to = "Concentration")
+
+# check structure again  
+str(Alkaloids_tidy)
+```
+
+## Re-level
+
+Re-level `Alkaloid` so that it is a factor, and goes in pathway order.
+
+```{r}
+unique(Alkaloids_tidy$Alkaloid)
+
+# change alkaloid factors to be in biosynthetic pathway order
+Alkaloids_tidy$Alkaloid <- factor(Alkaloids_tidy$Alkaloid,
+                                  levels = c("Dehydrotomatidine",
+                                  "Tomatidine",
+                                  "TotalDehydrotomatine",
+                                  "Tomatine",
+                                  "TotalHydroxytomatine",
+                                  "TotalAcetoxytomatine",
+                                  "DehydrolycoperosideFGdehydroesculeosideA",
+                                  "TotalLycoperosideFGEsculeosideA",
+                                  "TotalEsculeosideB",
+                                  "Total"))
+
+# check levels
+levels(Alkaloids_tidy$Alkaloid)
+```
+
+## Set alkaloid and class labels
+
+```{r}
+# make a list that has all the full names of the alkaloids
+alkaloid_labels <- c("Dehydrotomatidine",
+                     "Tomatidine",
+                     "Dehydrotomatine",
+                     "Alpha-Tomatine",
+                     "Hydroxytomatine",
+                     "Acetoxytomatine",
+                     "Dehydrolycoperoside F/G/Dehydroesculeoside A",
+                     "Lycoperoside F/G/Esculeoside A",
+                     "Esculeoside B",
+                     "Total Steroidal Alkaloids")
+
+# tell alkaloid_labels which original label to refer to
+names(alkaloid_labels) <- c("Dehydrotomatidine",
+                            "Tomatidine",
+                            "TotalDehydrotomatine",
+                            "Tomatine",
+                            "TotalHydroxytomatine",
+                            "TotalAcetoxytomatine",
+                            "DehydrolycoperosideFGdehydroesculeosideA",
+                            "TotalLycoperosideFGEsculeosideA",
+                            "TotalEsculeosideB",
+                            "Total")
+
+# enabling labeller for Class too
+str(Alkaloids_tidy$Class)
+class_labels <- c("Cultivated Processing", 
+                  "Cultivated Cherry",
+                  "Wide Cross Hybrid", 
+                  "Wild Cherry",
+                  expression(italic("S. pimpinellifolium")))
+
+class_labels
+```
+
+## Plot
+
+## All same y-axis
+
+All y-axis on the same range.
+
+```{r fig.width = 6, fig.height = 9}
+Alkaloids_tidy_mg <- Alkaloids_tidy %>%
+  mutate(Concentration_mg = Concentration/1000)
+
+Alkaloids_Faceted_Boxplot <- Alkaloids_tidy_mg %>%
+  ggplot(aes(x = Class, y = Concentration_mg, fill = Class)) +
+  geom_boxplot(aes(x = Class, y = Concentration_mg), alpha = 0.8, outlier.shape = NA) +
+  geom_jitter(aes(x = Class, y = Concentration_mg, fill = Class), 
+              shape = 21, size = 0.5, alpha = 0.6) +
+  scale_y_continuous(trans = "log10", labels = scales::number_format()) + 
+  scale_fill_manual(values = c("purple", "blue", "limegreen", "gold", "red2"),
+                    labels = class_labels) +
+  labs(title = "Steroidal Alkaloid Concentrations in Tomato",
+       y = "mg/100 g fresh weight") +
+  theme_classic() +
+  theme(legend.text.align = 0,
+        legend.position = "top",
+        legend.title = element_blank(),
+        title = element_text(size = 14),
+        axis.title = element_text(size = 10),
+        strip.text = element_text(size = 8),
+        legend.text = element_text(size = 6),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_text(size = 6),
+        panel.grid.major.y = element_line(colour = "gray50", size = 0.1, linetype = "dashed")) +
+  facet_wrap(~Alkaloid, ncol = 2, nrow = 5,
+             labeller = labeller(Alkaloid = alkaloid_labels)) +
+  annotation_logticks(sides = "l", size = 0.15) 
+
+Alkaloids_Faceted_Boxplot
+```
+
+```{r, eval = FALSE}
+ggsave("Alkaloid_facet_mg_smallerdots_thinnerticks.pdf", 
+       plot = Alkaloids_Faceted_Boxplot,
+       dpi = 800,
+       width = 6, height = 9)
+```
+
+## Label both columns of y-axis
+
+All y-axis on the same range, but the y-axis in the right column is now labelled.
+
+```{r, fig.width = 6, fig.height = 9}
+Alkaloids_Faceted_Boxplot_bothyaxislabelled <- Alkaloids_tidy_mg %>%
+  ggplot(aes(x = Class, y = Concentration_mg, fill = Class)) +
+  geom_boxplot(aes(x = Class, y = Concentration_mg), alpha = 0.8, outlier.shape = NA) +
+  geom_jitter(aes(x = Class, y = Concentration_mg, fill = Class), 
+              shape = 21, size = 0.5, alpha = 0.6) +
+  scale_y_continuous(trans = "log10", labels = scales::number_format(),
+                     limits = c(0.00001, 100)) + 
+  scale_fill_manual(values = c("purple", "blue", "limegreen", "gold", "red2"),
+                    labels = class_labels) +
+  labs(title = "Steroidal Alkaloid Concentrations in Tomato",
+       y = "mg/100 g fresh weight") +
+  theme_classic() +
+  theme(legend.text.align = 0,
+        legend.position = "top",
+        legend.title = element_blank(),
+        title = element_text(size = 14),
+        axis.title = element_text(size = 10),
+        strip.text = element_text(size = 8),
+        legend.text = element_text(size = 6),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_text(size = 6),
+        panel.grid.major.y = element_line(colour = "gray50", size = 0.1, linetype = "dashed")) +
+  facet_wrap(~Alkaloid, ncol = 2, nrow = 5,
+             labeller = labeller(Alkaloid = alkaloid_labels),
+             scales = "free_y") +
+  annotation_logticks(sides = "l", size = 0.15) 
+
+Alkaloids_Faceted_Boxplot_bothyaxislabelled
+```
+
+```{r, eval = FALSE}
+ggsave("Alkaloid_facet_mg_smallerdots_thinnerticks_all_y_labelled.pdf", 
+       plot = Alkaloids_Faceted_Boxplot_bothyaxislabelled,
+       dpi = 800,
+       width = 6, height = 9)
+```
+
+## Free y-axis per alkaloid
+
+Free\_y axis (meaning all the y-axis are independent). This is the plot we used in the paper.
+
+```{r, fig.width = 6, fig.height = 9}
+Alkaloids_Faceted_Boxplot_free_y <- Alkaloids_tidy_mg %>%
+  ggplot(aes(x = Class, y = Concentration_mg, fill = Class)) +
+  geom_boxplot(aes(x = Class, y = Concentration_mg), alpha = 0.8, outlier.shape = NA) +
+  geom_jitter(aes(x = Class, y = Concentration_mg, fill = Class), 
+              shape = 21, size = 0.5, alpha = 0.6) +
+  scale_y_continuous(trans = "log10", labels = scales::number_format()) + 
+  scale_fill_manual(values = c("purple", "blue", "limegreen", "gold", "red2"),
+                    labels = class_labels) +
+  labs(title = "Steroidal Alkaloid Concentrations in Tomato",
+       y = "mg/100 g fresh weight") +
+  theme_classic() +
+  theme(legend.text.align = 0,
+        legend.position = "top",
+        legend.title = element_blank(),
+        title = element_text(size = 14),
+        axis.title = element_text(size = 10),
+        strip.text = element_text(size = 8),
+        legend.text = element_text(size = 6),
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_text(size = 6),
+        panel.grid.major.y = element_line(colour = "gray50", size = 0.1, linetype = "dashed")) +
+  facet_wrap(~Alkaloid, ncol = 2, nrow = 5,
+             labeller = labeller(Alkaloid = alkaloid_labels),
+             scales = "free_y") +
+  annotation_logticks(sides = "l", size = 0.15) 
+
+Alkaloids_Faceted_Boxplot_free_y
+```
+
+```{r, eval = FALSE}
+ggsave("Alkaloid_facet_mg_smallerdots_thinnerticks_free_y.pdf", 
+       plot = Alkaloids_Faceted_Boxplot_free_y,
+       dpi = 800,
+       width = 6, height = 9)
+```
+
+# PCA
+
+### Read in data
+
+```{r}
+Alkaloids_LSmeans <- read_excel("SteroidalAlkaloidsSupplementalData.xlsx",
+                            sheet = "LSMeans Diversity Panel")
+
+str(Alkaloids_LSmeans)
+```
+
+## Prep data for PCA
+
+Select only the data we will use for our PCA. This includes the alkaloid totals (vs each individual isomer, which is listed), and removing some of the meta-data that we don't need to complicate our lives right now.
+
+```{r}
+Alkaloids_LSmeans_forPCA <- Alkaloids_LSmeans %>%
+  select(Genotype, Class,
+         Dehydrotomatidine, Tomatidine,
+         TotalDehydrotomatine, Tomatine,
+         TotalHydroxytomatine, TotalAcetoxytomatine,
+         DehydrolycoperosideFGdehydroesculeosideA, TotalLycoperosideFGEsculeosideA,
+         TotalEsculeosideB, Total)
+```
+
+## Run PCA
+
+We are running PCA using the package [`FactoMineR`](https://cran.r-project.org/web/packages/FactoMineR/index.html), and doing a quick visualization with `fviz_pca` from `FactoExtra`.
+
+`quali.sup` gives the indexes of the qualitative/categorical variables, in this case, `Genotype` and `Class`, which aren't inputs to the PCA. `scale.unit` is set to `TRUE` because we want to scale data to unit variance. `scale.unit = TRUE` is the default.
+
+```{r}
+# run PCA
+Alkaloids_PCA <- PCA(Alkaloids_LSmeans_forPCA, 
+                     quali.sup = 1:2, 
+                     graph = FALSE,
+                     scale.unit = TRUE)
+
+# visualize the PCA and loadings plot really quickly
+fviz_pca(Alkaloids_PCA)
+
+# visualize the PCA scores plot quickly
+fviz_pca_ind(Alkaloids_PCA)
+```
+
+This PCA scores plot isn't too useful for us because we don't know what point is what (they are just ordered as in our df) but we can fix this in a minute.
+
+```{r}
+# visualize the PCA loadings plot quickly
+fviz_pca_var(Alkaloids_PCA)
+
+# get a scree plot
+fviz_eig(Alkaloids_PCA)
+```
+
+## Get scores and loadings coordinates
+
+These default plots would benefit from plotting with `ggplot2` so that:
+
+-   we can see how things like `Class` affect scores plot locations
+-   so we can make these plots prettier
+
+Get coordinates for scores plot (where each point is an individual, i.e., a tomato accession). Then bind back to relevant meta-data.
+
+```{r}
+# get scores coordinates
+scores_coordinates <- as.data.frame(Alkaloids_PCA$ind$coord)
+
+# check structure
+str(scores_coordinates)
+
+# bind back to meta-data
+Alkaloids_LSmeans_withPC <- bind_cols(Alkaloids_LSmeans, scores_coordinates)
+```
+
+Now the first 5 dimensions (Dim.1 through Dim.5) are at the end of our df.
+
+Get coordinates for loadings plot (where each point is a variable, i.e., a alkaloid). Then bind back to indicate which alkaloid is which set of coordinates.
+
+```{r}
+loadings_coordinates <- as.data.frame(Alkaloids_PCA$var$coord)
+
+str(loadings_coordinates)
+
+loadings_coordinates$Alkaloid <- c("Dehydrotomatidine",
+                                  "Tomatidine",
+                                  "TotalDehydrotomatine",
+                                  "Tomatine",
+                                  "TotalHydroxytomatine",
+                                  "TotalAcetoxytomatine",
+                                  "DehydrolycoperosideFGdehydroesculeosideA",
+                                  "TotalLycoperosideFGEsculeosideA",
+                                  "TotalEsculeosideB",
+                                  "Total")
+
+str(loadings_coordinates)
+```
+
+Set `Class` as a factor with levels going from more cultivated, to more wild, in the order specified below.
+
+```{r}
+
+Alkaloids_LSmeans_withPC$Class <- factor(Alkaloids_LSmeans_withPC$Class, 
+                                         levels = c("Cultivated Processing", 
+                                                    "Cultivated Cherry", 
+                                                    "Wide Cross Hybrid",
+                                                    "Wild Cherry",
+                                                    "S. pimpinellifolium"))
+```
+
+## Plot
+
+### PCA Scores Plot
+
+```{r}
+Alkaloids_PCA_scores <- Alkaloids_LSmeans_withPC %>%
+  ggplot(aes(x = Dim.1, y = Dim.2, fill = Class, shape = Class)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  geom_point(size = 2.5, color = "black", alpha = 0.8) +
+  scale_shape_manual(values= c(24, 22, 23, 22, 21),
+                     labels = class_labels) +
+  scale_fill_manual(values = c("purple", "blue", "limegreen", "gold", "red2"),
+                    labels = class_labels) +
+  xlim(-2, 6) +
+  ylim(-5, 6) +
+  theme_classic() + 
+  theme(text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        legend.text.align = 0) +
+  labs(x = "PC1: 32.2%",
+       y = "PC2: 30.0%")
+
+Alkaloids_PCA_scores
+```
+
+```{r, eval = FALSE}
+ggsave(filename = "PCA_scores.png",
+       plot = Alkaloids_PCA_scores,
+       dpi = 1200,
+       width = 9,
+       height = 6)
+```
+
+### PCA Loadings Plot
+
+```{r}
+Alkaloids_PCA_loadings <- loadings_coordinates %>%
+  ggplot(aes(x = Dim.1, y = Dim.2, label = Alkaloid)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  geom_point(size = 2.5, color = "black", alpha = 0.8) +
+  geom_text_repel(aes(label = alkaloid_labels)) +
+  xlim(-0.33,1.1) +
+  ylim(-0.8, 1) +
+  theme_classic() + 
+  theme(text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        legend.text.align = 0) +
+  labs(x = "PC1: 32.2%",
+       y = "PC2: 30.0%")
+
+Alkaloids_PCA_loadings
+```
+
+```{r, eval = FALSE}
+ggsave(filename = "PCA_loadings.png",
+       plot = Alkaloids_PCA_loadings,
+       dpi = 1200,
+       width = 9,
+       height = 6)
+```
+
+Make one plot of the PCA scores and loadings with the package `patchwork`
+
+```{r}
+scores_and_loadings <- Alkaloids_PCA_scores + Alkaloids_PCA_loadings
+
+scores_and_loadings + plot_annotation(tag_levels = "A")
+
+scores_and_loadings <- scores_and_loadings + plot_annotation(tag_levels = "A")
+```
+
+```{r, eval = FALSE}
+ggsave(filename = "PCA_scores_and_loadings.png",
+       plot = scores_and_loadings,
+       dpi = 1200,
+       width = 14,
+       height = 6)
+```
+
+# Hierarchical clustering
+
+Data is already read in from the PCA section
+
+```{r}
+glimpse(Alkaloids_LSmeans)
+
+# we can use this df for HCA also with some trimming
+glimpse(Alkaloids_LSmeans_forPCA)
+```
+
+We will move `Genotype` to a rowname, because in Hierarchical Clustering you can only have your input data (i.e., no meta-data). Having `Genotype` as a rowname helps recombination with metadata later.
+
+```{r}
+Alkaloids_LSmeans_forHCA <- Alkaloids_LSmeans_forPCA %>%
+  column_to_rownames(var = "Genotype") %>%
+  select(-Class)
+
+kable(head(Alkaloids_LSmeans_forHCA))
+```
+
+#### Do we need to scale?
+
+```{r}
+colMeans(Alkaloids_LSmeans_forHCA) # calculate means
+
+# 2 means by column-wise
+apply(Alkaloids_LSmeans_forHCA, 2, sd) # calculate SDs
+```
+
+Yes we do need to scale because we do not have means of 0 and SD of 1.
+
+### Scaling
+
+```{r}
+scaled_Alkaloids_LSmeans_forHCA <- scale(Alkaloids_LSmeans_forHCA)
+```
+
+Did the scaling work?
+
+```{r}
+colMeans(scaled_Alkaloids_LSmeans_forHCA) # calculate means, should be 0
+
+apply(scaled_Alkaloids_LSmeans_forHCA, 2, sd) # calculate SDs, should be 1
+```
+
+Yes scaling worked. Now we can continue.
+
+### Generate distance matrix
+
+```{r}
+# calculate the distance matrix (euclidean distance)
+dist_matrix <- dist(scaled_Alkaloids_LSmeans_forHCA) 
+
+# conduct hierarchical clustering
+alkaloid_hclust <- hclust(d = dist_matrix, method = "ward.D2")
+
+summary(alkaloid_hclust)
+```
+
+### Plot dendrogram of `alkaloid_hclust`
+
+Make a quick and dirty plot of our hierarchical clustering, will make look nicer later.
+
+```{r, fig.height = 6, fig.width = 8}
+hclust_ward2 <- plot(alkaloid_hclust, 
+                    main = "HCA of Accessions by Steroidal Alkaloid Profile")
+```
+
+## Making dendrogram look nice
+
+You apply `dendro_data()` on a HCA object, here `alkaloid_hclust`
+
+```{r, fig.width=7, fig.height=4}
+# extract data for dendrogram.  can use rectangle or triangle
+dend_data <- dendro_data(alkaloid_hclust, type = "rectangle")
+
+# what are the names in dend_data
+names(dend_data)
+
+# ggplot dendrogram from hclust
+ggdendrogram(alkaloid_hclust)
+```
+
+#### Wrangling end labels
+
+```{r}
+# line segments
+head(dend_data$segments) 
+
+# labels
+head(dend_data$labels)
+
+# make vector with the end label order
+end_label_order <- dend_data$labels$label
+
+# make df with end_label_order and an id for order
+# rename end_label_order to be Genotype to enable joining
+end_label_order_withid <- as.data.frame(end_label_order) %>%
+  mutate(hclust_end_order = row_number()) %>%
+  rename(Genotype = end_label_order)
+
+# convert rowname to column in scaled HCA data to enable joining
+scaled_Alkaloids_LSmeans_forHCA_genotype <- 
+  as.data.frame(scaled_Alkaloids_LSmeans_forHCA) %>%
+  rownames_to_column(var = "Genotype")
+
+class(scaled_Alkaloids_LSmeans_forHCA_genotype)
+class(end_label_order_withid)
+
+# join with meta-data by 
+Alkaloids_LSmeans_forHCA_endlabelorder_fordend <- 
+  left_join(Alkaloids_LSmeans_withPC, 
+            end_label_order_withid, 
+            by = "Genotype")
+
+kable(head(Alkaloids_LSmeans_forHCA_endlabelorder_fordend))
+```
+
+```{r, fig.width = 8}
+# arrange by end label order
+order_for_Genotype_endlabels <- 
+  Alkaloids_LSmeans_forHCA_endlabelorder_fordend %>%
+  arrange(hclust_end_order)
+
+order_for_Genotype_endlabels$Class <- factor(order_for_Genotype_endlabels$Class, 
+                                                 levels = c("Cultivated Processing", 
+                                                            "Cultivated Cherry", 
+                                                            "Wide Cross Hybrid", 
+                                                            "Wild Cherry", 
+                                                            "S. pimpinellifolium"))
+
+HCA_tomato_alkaloids_wardD2 <- dend_data$segments %>%
+  ggplot(aes(x = x, y = y)) +
+  geom_segment(aes(xend = xend, yend = yend)) +
+  geom_text(data = dend_data$labels, 
+            aes(x, y, label = order_for_Genotype_endlabels$Genotype, 
+                color = order_for_Genotype_endlabels$Class), 
+            hjust = 1, angle = 90, size = 2.5) +
+  scale_color_manual(values = c("purple", "blue", "limegreen", "gold", "red2")) +
+  ylim(-5, 25) +
+  theme_minimal() +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  labs(title = "Dendrogram from Hierarhical Clustering of Tomato Steroidal Alkaloids",
+       subtitle = "Ward's D2 Linkage Distances",
+       x = "",
+       y = "Height",
+       color = "Class")
+
+HCA_tomato_alkaloids_wardD2
+```
+
+## Cut tree at k = 3
+
+Selected based on major clusters of the dendrogram above.
+
+```{r}
+cut3.alkaloid_hclust <- cutree(alkaloid_hclust, k = 3)
+hclust_3_group <- cut3.alkaloid_hclust
+
+Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust <- Alkaloids_LSmeans_forHCA_endlabelorder_fordend %>%
+  mutate(hclust_3_cluster = as.factor(hclust_3_group))
+
+glimpse(Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust)
+```
+
+# Superimpose clusters onto PCA
+
+## Regular PCA (no cluster assignment)
+
+We have made this plot already in the PCA section of this Rmd.
+
+```{r}
+Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust$Class <- 
+  factor(Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust$Class, 
+         levels = c("Cultivated Processing", 
+                    "Cultivated Cherry", 
+                    "Wide Cross Hybrid", 
+                    "Wild Cherry", 
+                    "S. pimpinellifolium"))
+
+Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust %>%
+  ggplot(aes(x = Dim.1, y = Dim.2, fill = Class, shape = Class)) +
+  geom_point(size = 2, alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  scale_shape_manual(values=c(24,22,23,22,21),
+                     labels = expression("Cultivated Processing", 
+                                         "Cultivated Cherry", 
+                                         "Wide Cross Hybrid", 
+                                         "Wild Cherry", italic("S. pimpinellifolium"))) +
+  scale_fill_manual(values = c("purple", "blue", "limegreen", "gold", "red2"),
+                    labels = expression("Cultivated Processing", 
+                                        "Cultivated Cherry", 
+                                        "Wide Cross Hybrid", 
+                                        "Wild Cherry", 
+                                        italic("S. pimpinellifolium"))) +
+  theme_classic() + 
+  theme(text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        legend.text.align = 0) +
+  labs(title = "PCA Scores Plot",
+       x = "PC1: 32.2%",
+       y = "PC2: 30.0%") 
+
+```
+
+Labeling points with their genotype.
+
+```{r}
+alkaloid_pca <- Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust %>%
+  ggplot(aes(x = Dim.1, y = Dim.2, fill = Class, shape = Class, label = Genotype)) +
+  geom_point() +
+  geom_text(nudge_x = 0.8, nudge_y = 0.1) +
+  scale_shape_manual(values=c(24,22,23,22,21)) +
+  scale_fill_manual(values = c("purple", "blue", "limegreen", "gold", "red2")) +
+  theme_classic() + 
+  theme(text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 12)) +
+  labs(title = "",
+       x = "PC1: 32.2%",
+       y = "PC2: 30.0%")
+
+alkaloid_pca
+```
+
+A disaster. Using `ggrepel` doesn't work super well here either because there is so much bunching of points.
+
+Let's try using plotly.
+
+```{r}
+alkaloid_pca <- Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust %>%
+  ggplot(aes(x = Dim.1, y = Dim.2, 
+             fill = Class, shape = Class, label = Genotype, text = Genotype)) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_shape_manual(values=c(24,22,23,22,21)) +
+  scale_fill_manual(values = c("purple", "blue", "limegreen", "gold", "red2")) +
+  theme_classic() + 
+  theme(text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 12)) +
+  labs(title = "PCA Scores Plot",
+       x = "PC1: 32.2%",
+       y = "PC2: 30.0%")
+
+ggplotly(alkaloid_pca, tooltip = "text")
+```
+
+### PCA with HCA Clusters
+
+#### 3 clusters
+
+```{r}
+Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust %>%
+  ggplot(aes(x = Dim.1, y = Dim.2, fill = hclust_3_cluster, shape = Class)) +
+  geom_point(size = 2, alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  scale_shape_manual(values=c(24,22,23,22,21),
+                     labels = expression("Cultivated Processing", 
+                                         "Cultivated Cherry", 
+                                         "Wide Cross Hybrid", 
+                                         "Wild Cherry", 
+                                         italic("S. pimpinellifolium"))) +
+  scale_fill_viridis_d() +
+  theme_classic() + 
+  theme(text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        legend.text.align = 0) +
+  labs(title = "PCA Scores Plot",
+       subtitle = "Overlaid with Hierarchical Cluster Assignment (3 clusters)",
+       x = "PC1: 32.2%",
+       y = "PC2: 30.0%") 
+```
+
+## PCA of wild cherry only
+
+Remove all other accessions that do not belong to the class wild cherry.
+
+```{r}
+Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust_wildcherry <- 
+  Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust %>%
+  filter(Class == "Wild Cherry")
+
+Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust_wildcherry %>%
+  ggplot(aes(x = Dim.1, y = Dim.2, fill = Class, shape = Class)) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  scale_shape_manual(values=22) +
+  scale_fill_manual(values = "gold")  +
+  theme_classic() + 
+  theme(text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        legend.text.align = 0) +
+  labs(title = "",
+       x = "PC1: 32.2%",
+       y = "PC2: 30.0%") + 
+  theme(legend.position="right") 
+```
+
+## HCA overlaid on wild cherry
+
+### 3 clusters
+
+```{r}
+glimpse(Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust_wildcherry)
+
+(PCA_3_HCA <- Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust_wildcherry %>%
+  ggplot(aes(x = Dim.1, y = Dim.2, 
+             fill = hclust_3_cluster, 
+             label = hclust_3_cluster)) +
+  geom_point(size = 2.5, alpha = 0.8, shape = 22) +
+  scale_fill_viridis_d() +
+  labs(title = "PCA Scores Plot Colored by Hierarchical Cluster",
+       subtitle = "Ward's D2 Linkage, Wild Cherry Only",
+       x = "PC1: 32.2%",
+       y = "PC2: 30.0%") +
+  theme_classic() + 
+  theme(text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        legend.position = "none"))
+```
+
+```{r, eval = FALSE}
+ggsave(filename = "HCA_3clusters.png",
+       plot = PCA_3_HCA,
+       dpi = 1200,
+       width = 9,
+       height = 6)
+```
+
+### 3 clusters with accessions labelled
+
+Labelling the accessions in the bottom cluster.
+
+```{r}
+kable(head(Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust_wildcherry))
+
+# create character vector of Genotypes in bottom cluster
+bottom_wild_cherry_forfilt <- c("LA2126A",
+                       "LA1338",
+                        "LA1654",
+                        "LA2262",
+                        "LA2213",
+                        "LA2256",
+                        "LA2308",
+                        "LA1701",
+                        "PI155372",
+                        "PI129128")
+
+# create new df which only includes those bottom cluster Genotypes
+Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust_wildcherry_bottom <-
+  Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust_wildcherry %>%
+  filter(Genotype %in% bottom_wild_cherry_forfilt)
+
+dim(Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust_wildcherry_bottom)
+
+# get the same location of labels each time
+set.seed(123) # because geom_label_repel iterates
+
+(PCA_3_HCA_bottomclusterlabelled <- 
+  Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust_wildcherry %>%
+  ggplot(aes(x = Dim.1, y = Dim.2, 
+             fill = hclust_3_cluster, 
+             label = hclust_3_cluster)) +
+  geom_point(size = 2.5, alpha = 0.8, shape = 22) +
+  geom_label_repel(data = Alkaloids_LSmeans_forHCA_endlabelorder_fordend_withclust_wildcherry_bottom,
+                   aes(label = Genotype), fill = "white") +
+  scale_fill_viridis_d() +
+  labs(title = "PCA Scores Plot Colored by Hierarchical Cluster",
+       subtitle = "Ward's D2 Linkage, Wild Cherry Only",
+       x = "PC1: 32.2%",
+       y = "PC2: 30.0%") +
+  theme_classic() + 
+  theme(text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        legend.position = "none"))
+```
+
+```{r, eval = FALSE}
+ggsave(filename = "HCA_3clusters_bottomclusterlabelled.jpg",
+       plot = PCA_3_HCA_bottomclusterlabelled,
+       dpi = 1200,
+       width = 9,
+       height = 6)
+```
+
+# GWAS
+
+UPLOADING SOON.
+
+# Manhattan Plots
+
+Create Manhattan plots from the GWAS and mQTL analysis in our diversity panel and bi-parental populations, respectively. Selection criteria included known patterns of genetic diversity as determined by genotyping using a 7,720 SNP array ([Sim et al., 2012a](https://doi.org/10.1371/journal.pone.0045520); [Blanca et al., 2015](https://doi.org/10.1186/s12864-015-1444-1)), previous phenotypic information for alkaloid content ([Rick et al., 1994](https://doi.org/10.1073/pnas.91.26.12877)), and geographic origin (visualized in Fig. S1.). Alkaloids were phenotyped using our previously published method ([Dzakovich et al., 2020](https://doi.org/10.3389/fpls.2020.00767)).
+
+## Diversity panel GWAS
+
+### Read in data
+
+```{r}
+diversity_GWAS_raw <- read_excel("SteroidalAlkaloidsSupplementalData.xlsx",
+                            sheet = "GWAS Output_MAF10Pct")
+
+# what are the dimensions of this data?
+dim(diversity_GWAS_raw)
+
+# what is the structure of this dataframe?
+str(diversity_GWAS_raw)
+```
+
+## Wrangling
+
+Making data tidy facilitates creating Manhattan plots that are faceted by each different alkaloid.
+
+```{r}
+diversity_GWAS_tidy <- diversity_GWAS_raw %>%
+  pivot_longer(cols = Dehydrotomatidine_neg_log10_pval:Total_neg_log10_pval, 
+               names_to = "alkaloid", 
+               values_to = "pvalue")
+
+# check dataframe dimensions
+dim(diversity_GWAS_tidy)
+```
+
+Setting up labels for use with `labeller`.
+
+```{r}
+alk_labels <- c(
+  Dehydrotomatidine_neg_log10_pval = "Dehydrotomatidine",
+  Tomatidine_neg_log10_pval = "Tomatidine",
+  Dehydrotomatine_neg_log10_pval = "Dehydrotomatine",
+  Alpha_Tomatine_neg_log10_pval = "Alpha-Tomatine",
+  Hydroxytomatine_neg_log10_pval = "Hydroxytomatine",
+  Acetoxytomatine_neg_log10_pval = "Acetoxytomatine",
+  DehydrolycoperosideF_G_Dehydroesculeoside_A_neg_log10_pval = "Dehydrolycoperoside F/G/Dehydroesculeoside A",
+  LycoperosideF_G_Esculeoside_A_neg_log10_pval = "Lycoperoside F/G/Esculeoside A",
+  Esculeoside_B_neg_log10_pval = "Esculeoside B",
+  Total_neg_log10_pval = "Total Steroidal Alkaloids")
+```
+
+## Alkaloid as factors
+
+This will make our faceted plot go in the alkaloid biosynthetic pathway order, instead of alphabetically.
+
+```{r}
+diversity_GWAS_tidy$alkaloid <- 
+  factor(diversity_GWAS_tidy$alkaloid, 
+         levels = c("Dehydrotomatidine_neg_log10_pval", 
+                    "Tomatidine_neg_log10_pval", 
+                    "Dehydrotomatine_neg_log10_pval", 
+                    "Alpha_Tomatine_neg_log10_pval", 
+                    "Hydroxytomatine_neg_log10_pval", 
+                    "Acetoxytomatine_neg_log10_pval", 
+                    "DehydrolycoperosideF_G_Dehydroesculeoside_A_neg_log10_pval",
+                    "LycoperosideF_G_Esculeoside_A_neg_log10_pval",
+                    "Esculeoside_B_neg_log10_pval",
+                    "Total_neg_log10_pval"))
+
+str(diversity_GWAS_tidy)
+
+class(diversity_GWAS_tidy$alkaloid)
+levels(diversity_GWAS_tidy$alkaloid)
+```
+
+## Faceting by alkaloid GWAS
+
+Here we have one mondo figure with all the alkaloid Manhattan plots on the same axis. Points are colored red if they are significant at the 0.05 level after a FDR correction. The input data are FDR corrected, and a -log10pvalue of 1.301 is the same as P = 0.05 FDR corrected.
+
+```{r}
+diversity_GWAS_tidy %>%
+  ggplot(aes(x = (CHR+(Phy_Posbp/75000000)), y = pvalue, group = alkaloid)) +
+  geom_point(aes(color = pvalue > 1.301), size=.5, stat = "identity") +
+  scale_x_continuous(breaks = unique(diversity_GWAS_tidy$CHR), 
+                     label = unique(diversity_GWAS_tidy$CHR)) +
+  scale_y_continuous(expand = c(0,0)) +
+  geom_hline(aes(yintercept= 1.301), color = "grey", linetype = "dashed") +
+  scale_color_manual(values = c("black", "red")) +
+  theme_classic() +
+  theme(legend.position = "none") +
+  xlab("Chromosome") +
+  ylab(expression("-log"[10]* " FDR Corrected P-Value")) +
+  facet_wrap(~alkaloid, 
+             nrow = 2, 
+             ncol = 5,
+             labeller = as_labeller(alk_labels, default = label_wrap_gen(28))) 
+```
+
+### Alternating chromosome colors
+
+This will make it easier to tell which markers are on which chromosome.
+
+```{r, fig.width = 10, fig.height = 6}
+diversity_GWAS_alt_chr <- diversity_GWAS_tidy %>%
+  ggplot(aes(x = (CHR+(Phy_Posbp/75000000)), y = pvalue, 
+             color = as.factor(CHR), group = alkaloid)) +
+  geom_point(size=1, stat = "identity") +
+  scale_x_continuous(breaks = unique(diversity_GWAS_tidy$CHR), 
+                     label = unique(diversity_GWAS_tidy$CHR)) +
+  scale_y_continuous(expand = c(0,0)) +
+  geom_hline(aes(yintercept= 1.301), color = "grey", linetype = "dashed") +
+  scale_color_manual(values = rep(c("black", "gray"), 12)) +
+  theme_classic() +
+  theme(legend.position = "none") +
+  xlab("Chromosome") +
+  ylab(expression("FDR corrected "-log[10](P))) +
+  facet_wrap(~alkaloid, 
+             nrow = 2, 
+             ncol = 5,
+             labeller = as_labeller(alk_labels, default = label_wrap_gen(28)),
+             scales = "free_x") 
+
+diversity_GWAS_alt_chr
+```
+
+```{r, eval = FALSE}
+ggsave("Diversity_GWAS_alt_chr.png",
+       plot = diversity_GWAS_alt_chr,
+       dpi = 1200,
+       width = 10,
+       height = 6)
+```
+
+### Free y-axis
+
+All y-axis scales are independent.
+
+```{r, fig.width = 10, fig.height = 6}
+diversity_GWAS_alt_chr_free_y <- diversity_GWAS_tidy %>%
+  ggplot(aes(x = (CHR+(Phy_Posbp/75000000)), y = pvalue, 
+             color = as.factor(CHR), group = alkaloid)) +
+  geom_point(size=1, stat = "identity") +
+  scale_x_continuous(breaks = unique(diversity_GWAS_tidy$CHR), 
+                     label = unique(diversity_GWAS_tidy$CHR)) +
+  scale_y_continuous(expand = c(0,0)) +
+  geom_hline(aes(yintercept= 1.301), color = "grey", linetype = "dashed") +
+  scale_color_manual(values = rep(c("black", "gray"), 12)) +
+  theme_classic() +
+  theme(legend.position = "none") +
+  xlab("Chromosome") +
+  ylab(expression("FDR corrected "-log[10](P))) +
+  facet_wrap(~alkaloid, 
+             nrow = 2, 
+             ncol = 5,
+             labeller = as_labeller(alk_labels, default = label_wrap_gen(28)),
+             scales = "free") 
+
+diversity_GWAS_alt_chr_free_y
+```
+
+```{r, eval = FALSE}
+ggsave("Diversity_GWAS_alt_chr_free_y.png",
+       plot = diversity_GWAS_alt_chr_free_y,
+       dpi = 1200,
+       width = 10,
+       height = 6)
+```
+
+### Individual Manhattan plots for each alkaloid
+
+```{r}
+kable(head(diversity_GWAS_raw))
+
+diversity_GWAS_manhattan_plots <- function(g){
+diversity_GWAS_raw %>%
+  ggplot(aes(x = (CHR+(Phy_Posbp/75000000)), color = as.factor(CHR))) +
+  geom_point(aes_(y = as.name(g)), size=1, stat = "identity") +
+  scale_x_continuous(breaks = unique(diversity_GWAS_tidy$CHR), 
+                     label = unique(diversity_GWAS_tidy$CHR)) +
+  scale_y_continuous(expand = c(0,0)) +
+  geom_hline(aes(yintercept= 1.301), color = "grey", linetype = "dashed") +
+  scale_color_manual(values = rep(c("black", "gray"), 12)) +
+  theme_classic() +
+  theme(legend.position = "none") +
+  labs(title = paste(g),
+       x ="Chromosome",
+       y = (expression("FDR corrected "-log[10](P))))
+}  
+
+all_diversity_gwas_manhatan_plots <- lapply(names(diversity_GWAS_raw[,6:ncol(diversity_GWAS_raw)]), 
+                                            diversity_GWAS_manhattan_plots)
+all_diversity_gwas_manhatan_plots
+```
+
+## Bi-parental GWAS
+
+### Read in data
+
+```{r}
+biparental_GWAS_raw <- read_excel("SteroidalAlkaloidsSupplementalData.xlsx",
+                            sheet = "BC1S1 Output MAF10Pct")
+
+# what are the dimensions of this data?
+dim(biparental_GWAS_raw)
+
+# what is the structure of this dataframe?
+str(biparental_GWAS_raw)
+```
+
+## Wrangling
+
+Making data tidy facilitates faceting by alkaloids.
+
+```{r}
+biparental_GWAS_tidy <- biparental_GWAS_raw %>%
+  pivot_longer(cols = Dehydrotomatidine_neg_log10_pval:Total_neg_log10_pval, 
+               names_to = "alkaloid", 
+               values_to = "pvalue")
+
+# check dataframe dimensions
+dim(biparental_GWAS_tidy)
+```
+
+## Alkaloid as factors
+
+This will make our faceted plot go in the alkaloid biosynthetic pathway order, instead of alphabetically.
+
+```{r}
+biparental_GWAS_tidy$alkaloid <- 
+  factor(biparental_GWAS_tidy$alkaloid, 
+         levels = c("Dehydrotomatidine_neg_log10_pval", 
+                    "Tomatidine_neg_log10_pval", 
+                    "Dehydrotomatine_neg_log10_pval", 
+                    "Alpha_Tomatine_neg_log10_pval", 
+                    "Hydroxytomatine_neg_log10_pval", 
+                    "Acetoxytomatine_neg_log10_pval", 
+                    "DehydrolycoperosideF_G_Dehydroesculeoside_A_neg_log10_pval",
+                    "LycoperosideF_G_Esculeoside_A_neg_log10_pval",
+                    "Esculeoside_B_neg_log10_pval",
+                    "Total_neg_log10_pval"))
+
+str(biparental_GWAS_tidy)
+
+class(biparental_GWAS_tidy$alkaloid)
+levels(biparental_GWAS_tidy$alkaloid)
+```
+
+## Faceting by alkaloid GWAS
+
+Here we have one mondo figure with all the alkaloid Manhattan plots on the same axis. Points are colored red if they are significant at the 0.05 level after a FDR correction. The input data are FDR corrected, and a -log10pvalue of 1.301 is the same as P = 0.05 FDR corrected.
+
+```{r}
+biparental_GWAS_tidy %>%
+  ggplot(aes(x = (Chr+(Phy_Posbp/75000000)), y = pvalue, group = alkaloid)) +
+  geom_point(aes(color = pvalue > 1.301), size=.5, stat = "identity") +
+  scale_x_continuous(breaks = unique(biparental_GWAS_tidy$Chr), 
+                     label = unique(biparental_GWAS_tidy$Chr)) +
+  scale_y_continuous(expand = c(0,0)) +
+  geom_hline(aes(yintercept= 1.301), color = "grey", linetype = "dashed") +
+  scale_color_manual(values = c("black", "red")) +
+  theme_classic() +
+  theme(legend.position = "none") +
+  xlab("Chromosome") +
+  ylab(expression("-log"[10]* " FDR Corrected P-Value")) +
+  facet_wrap(~alkaloid, 
+             nrow = 2, 
+             ncol = 5,
+             labeller = as_labeller(alk_labels, default = label_wrap_gen(28))) 
+```
+
+### Alternating chromosome colors
+
+```{r, fig.width = 10, fig.height = 6}
+biparental_GWAS_alt_chr <- biparental_GWAS_tidy %>%
+  ggplot(aes(x = (Chr+(Phy_Posbp/75000000)), y = pvalue, 
+             color = as.factor(Chr), group = alkaloid)) +
+  geom_point(size=1, stat = "identity") +
+  scale_x_continuous(breaks = unique(biparental_GWAS_tidy$Chr), 
+                     label = unique(biparental_GWAS_tidy$Chr)) +
+  scale_y_continuous(expand = c(0,0)) +
+  geom_hline(aes(yintercept= 1.301), color = "grey", linetype = "dashed") +
+  scale_color_manual(values = rep(c("black", "gray"), 12)) +
+  theme_classic() +
+  theme(legend.position = "none") +
+  xlab("Chromosome") +
+  ylab(expression("FDR corrected "-log[10](P))) +
+  facet_wrap(~alkaloid, 
+             nrow = 2, 
+             ncol = 5,
+             labeller = as_labeller(alk_labels, default = label_wrap_gen(28)),
+             scales = "free_x") 
+
+biparental_GWAS_alt_chr
+```
+
+```{r, eval = FALSE}
+ggsave("biparental_GWAS_alt_chr.png",
+       plot = biparental_GWAS_alt_chr,
+       dpi = 1200,
+       width = 10,
+       height = 6)
+```
+
+### Free y-axis
+
+```{r, fig.width = 10, fig.height = 6}
+biparental_GWAS_alt_chr_free_y <- biparental_GWAS_tidy %>%
+  ggplot(aes(x = (Chr+(Phy_Posbp/75000000)), y = pvalue, 
+             color = as.factor(Chr), group = alkaloid)) +
+  geom_point(size=1, stat = "identity") +
+  scale_x_continuous(breaks = unique(biparental_GWAS_tidy$Chr), 
+                     label = unique(biparental_GWAS_tidy$Chr)) +
+  scale_y_continuous(expand = c(0,0)) +
+  geom_hline(aes(yintercept= 1.301), color = "grey", linetype = "dashed") +
+  scale_color_manual(values = rep(c("black", "gray"), 12)) +
+  theme_classic() +
+  theme(legend.position = "none") +
+  xlab("Chromosome") +
+  ylab(expression("FDR corrected "-log[10](P))) +
+  facet_wrap(~alkaloid, 
+             nrow = 2, 
+             ncol = 5,
+             labeller = as_labeller(alk_labels, default = label_wrap_gen(28)),
+             scales = "free") 
+
+biparental_GWAS_alt_chr_free_y
+```
+
+```{r, eval = FALSE}
+ggsave("biparental_GWAS_alt_chr_free_y.png",
+       plot = biparental_GWAS_alt_chr_free_y,
+       dpi = 1200,
+       width = 10,
+       height = 6)
+```
+
+### Individual Manhattan plots for each alkaloid
+
+```{r}
+kable(head(biparental_GWAS_raw))
+
+biparental_GWAS_manhattan_plots <- function(g){
+biparental_GWAS_raw %>%
+  ggplot(aes(x = (Chr+(Phy_Posbp/75000000)), color = as.factor(Chr))) +
+  geom_point(aes_(y = as.name(g)), size=1, stat = "identity") +
+  scale_x_continuous(breaks = unique(biparental_GWAS_raw$Chr), 
+                     label = unique(biparental_GWAS_raw$Chr)) +
+  geom_hline(aes(yintercept= 1.301), color = "grey", linetype = "dashed") +
+  scale_color_manual(values = rep(c("black", "gray"), 12)) +
+  theme_classic() +
+  theme(legend.position = "none") +
+  labs(title = paste(g),
+       x ="Chromosome",
+       y = (expression("FDR corrected "-log[10](P))))
+}  
+
+all_biparental_gwas_manhatan_plots <- lapply(names(biparental_GWAS_raw[,8:ncol(biparental_GWAS_raw)]), 
+                                            biparental_GWAS_manhattan_plots)
+all_biparental_gwas_manhatan_plots
+```
+
+## Correlation Analysis
+
+We are interested to understand how the concentration of each alkaloid is related to every other alkaloid. To do this, we will conduct a correlation analysis.
+
+The inputs to the correlation analyses are the LS means per genotype.
+
+```{r}
+head(Alkaloids_LSmeans)
+
+# this is already trimmed of some meta-data we don't need
+head(Alkaloids_LSmeans_forPCA)
+```
+
+```{r}
+# all isomers
+Alkaloids_LSmeans_allisomers_corr <- Alkaloids_LSmeans %>%
+  select(Genotype, Class, Dehydrotomatidine:Total)
+
+# sums only
+Alkaloids_LSmeans_sums_corr <- Alkaloids_LSmeans_forPCA %>%
+  select(Genotype, Class, Dehydrotomatidine:Total)
+```
+
+### On sums
+
+#### Full population
+
+```{r}
+Alkaloids_sums_corr_matrix <- cor(Alkaloids_LSmeans_sums_corr[,3:ncol(Alkaloids_LSmeans_sums_corr)], 
+                                  method = "pearson")
+
+kable(Alkaloids_sums_corr_matrix)
+
+# run cor.mtest to get pvalues and CI for each pair of inputs
+sums_cor_mtest <- cor.mtest(Alkaloids_sums_corr_matrix, 
+                            conf.level = 0.95)
+
+# save the pvalue matrix
+sums_pval_matrix <- sums_cor_mtest$p
+```
+
+Prettying up the axis labels
+
+```{r}
+axis_labels_totals <- c("Dehydrotomatidine",
+                 "Tomatidine",
+                 "Dehydrotomatine",
+                 "Alpha-Tomatine",
+                 "Hydroxytomatidine",
+                 "Acetoxytomatidine",
+                 "Dehydrolycoperoside F/G/Dehydroesculeoside A",
+                 "Lycoperoside F/G/Esculeoside A",
+                 "Escueloside B",
+                 "Total SteroidalAlkaloids")
+
+colnames(Alkaloids_sums_corr_matrix) <- axis_labels_totals %>% str_wrap(width = 24)
+rownames(Alkaloids_sums_corr_matrix) <- axis_labels_totals %>% str_wrap(width = 24)
+```
+
+Create corrplot
+
+```{r}
+corrplot_sum_fullpop <- corrplot(Alkaloids_sums_corr_matrix,
+         method = "circle",
+         p.mat = sums_pval_matrix,
+         insig = "label_sig", 
+         type = "upper",
+         sig.level = c(.001, .01, .05),
+         outline = TRUE,
+         pch.cex = 1, # size of asterisks
+         pch.col = "white", # color of asterisks
+         tl.cex= 1, # size of axis text
+         tl.col="black", # color of axis text
+         title = "Full Population") 
+
+corrplot_sum_fullpop
+```
+
+#### Cultivated Processing
+
+```{r}
+Alkaloids_LSmeans_sums_corr_cultproc <- Alkaloids_LSmeans_sums_corr %>%
+  filter(Class == "Cultivated Processing")
+
+head(Alkaloids_LSmeans_sums_corr_cultproc)
+
+Alkaloids_sums_corr_matrix_cultproc <- cor(Alkaloids_LSmeans_sums_corr_cultproc[,3:ncol(Alkaloids_LSmeans_sums_corr_cultproc)], 
+                                  method = "pearson")
+
+kable(Alkaloids_sums_corr_matrix_cultproc)
+
+# run cor.mtest to get pvalues and CI for each pair of inputs
+sums_cor_mtest_cultproc <- cor.mtest(Alkaloids_sums_corr_matrix_cultproc, 
+                            conf.level = 0.95)
+
+# save the pvalue matrix
+sums_pval_matrix_cultproc <- sums_cor_mtest_cultproc$p
+
+colnames(Alkaloids_sums_corr_matrix_cultproc) <- axis_labels_totals %>% str_wrap(width = 24)
+rownames(Alkaloids_sums_corr_matrix_cultproc) <- axis_labels_totals %>% str_wrap(width = 24)
+```
+
+Create corrplot
+
+```{r}
+corrplot_sum_cultproc <- corrplot(Alkaloids_sums_corr_matrix_cultproc,
+         method = "circle",
+         p.mat = sums_pval_matrix_cultproc,
+         insig = "label_sig", 
+         type = "upper",
+         sig.level = c(.001, .01, .05),
+         outline = TRUE,
+         pch.cex = 1, # size of asterisks
+         pch.col = "white", # color of asterisks
+         tl.cex= 1, # size of axis text
+         tl.col= "black", # color of axis text
+         title = "Cultivated Processing") 
+
+corrplot_sum_cultproc
+```
+
+#### Cultivated Cherry
+
+```{r}
+Alkaloids_LSmeans_sums_corr_cultcherry <- Alkaloids_LSmeans_sums_corr %>%
+  filter(Class == "Cultivated Cherry")
+
+head(Alkaloids_LSmeans_sums_corr_cultcherry)
+
+Alkaloids_sums_corr_matrix_cultcherry <- cor(Alkaloids_LSmeans_sums_corr_cultcherry[,3:ncol(Alkaloids_LSmeans_sums_corr_cultcherry)], 
+                                  method = "pearson")
+
+kable(Alkaloids_sums_corr_matrix_cultcherry)
+
+# run cor.mtest to get pvalues and CI for each pair of inputs
+sums_cor_mtest_cultcherry <- cor.mtest(Alkaloids_sums_corr_matrix_cultcherry, 
+                            conf.level = 0.95)
+
+# save the pvalue matrix
+sums_pval_matrix_cultcherry <- sums_cor_mtest_cultcherry$p
+
+colnames(Alkaloids_sums_corr_matrix_cultcherry) <- axis_labels_totals %>% str_wrap(width = 24)
+rownames(Alkaloids_sums_corr_matrix_cultcherry) <- axis_labels_totals %>% str_wrap(width = 24)
+```
+
+Create corrplot
+
+```{r}
+corrplot_sum_cultcherry <- corrplot(Alkaloids_sums_corr_matrix_cultcherry,
+         method = "circle",
+         p.mat = sums_pval_matrix_cultcherry,
+         insig = "label_sig", 
+         type = "upper",
+         sig.level = c(.001, .01, .05),
+         outline = TRUE,
+         pch.cex = 1, # size of asterisks
+         pch.col = "white", # color of asterisks
+         tl.cex= 1, # size of axis text
+         tl.col= "black", # color of axis text
+         title = "Cultivated Cherry") 
+
+corrplot_sum_cultcherry
+```
+
+#### Wide Cross Hybrid
+
+```{r}
+Alkaloids_LSmeans_sums_corr_hybrid <- Alkaloids_LSmeans_sums_corr %>%
+  filter(Class == "Wide Cross Hybrid")
+
+head(Alkaloids_LSmeans_sums_corr_hybrid)
+
+Alkaloids_sums_corr_matrix_hybrid <- cor(Alkaloids_LSmeans_sums_corr_hybrid[,3:ncol(Alkaloids_LSmeans_sums_corr_hybrid)], 
+                                  method = "pearson")
+
+kable(Alkaloids_sums_corr_matrix_hybrid)
+
+# run cor.mtest to get pvalues and CI for each pair of inputs
+sums_cor_mtest_hybrid <- cor.mtest(Alkaloids_sums_corr_matrix_hybrid, 
+                            conf.level = 0.95)
+
+# save the pvalue matrix
+sums_pval_matrix_hybrid <- sums_cor_mtest_hybrid$p
+
+colnames(Alkaloids_sums_corr_matrix_hybrid) <- axis_labels_totals %>% str_wrap(width = 24)
+rownames(Alkaloids_sums_corr_matrix_hybrid) <- axis_labels_totals %>% str_wrap(width = 24)
+```
+
+Create corrplot
+
+```{r}
+corrplot_sum_hybrid <- corrplot(Alkaloids_sums_corr_matrix_hybrid,
+         method = "circle",
+         p.mat = sums_pval_matrix_hybrid,
+         insig = "label_sig", 
+         type = "upper",
+         sig.level = c(.001, .01, .05),
+         outline = TRUE,
+         pch.cex = 1, # size of asterisks
+         pch.col = "white", # color of asterisks
+         tl.cex= 1, # size of axis text
+         tl.col= "black", # color of axis text
+         title = "Wide Cross Hybrid") 
+
+corrplot_sum_hybrid
+```
+
+#### Wild Cherry
+
+```{r}
+Alkaloids_LSmeans_sums_corr_wildcherry <- Alkaloids_LSmeans_sums_corr %>%
+  filter(Class == "Wild Cherry")
+
+head(Alkaloids_LSmeans_sums_corr_wildcherry)
+
+Alkaloids_sums_corr_matrix_wildcherry <- cor(Alkaloids_LSmeans_sums_corr_wildcherry[,3:ncol(Alkaloids_LSmeans_sums_corr_wildcherry)], 
+                                  method = "pearson")
+
+kable(Alkaloids_sums_corr_matrix_wildcherry)
+
+# run cor.mtest to get pvalues and CI for each pair of inputs
+sums_cor_mtest_wildcherry <- cor.mtest(Alkaloids_sums_corr_matrix_wildcherry, 
+                            conf.level = 0.95)
+
+# save the pvalue matrix
+sums_pval_matrix_wildcherry <- sums_cor_mtest_wildcherry$p
+
+colnames(Alkaloids_sums_corr_matrix_wildcherry) <- axis_labels_totals %>% str_wrap(width = 24)
+rownames(Alkaloids_sums_corr_matrix_wildcherry) <- axis_labels_totals %>% str_wrap(width = 24)
+```
+
+Create corrplot
+
+```{r}
+corrplot_sum_wildcherry <- corrplot(Alkaloids_sums_corr_matrix_wildcherry,
+         method = "circle",
+         p.mat = sums_pval_matrix_wildcherry,
+         insig = "label_sig", 
+         type = "upper",
+         sig.level = c(.001, .01, .05),
+         outline = TRUE,
+         pch.cex = 1, # size of asterisks
+         pch.col = "white", # color of asterisks
+         tl.cex= 1, # size of axis text
+         tl.col= "black", # color of axis text
+         title = "Wild Cherry") 
+
+corrplot_sum_wildcherry
+```
+
+#### S. pimpinellifolium
+
+```{r}
+Alkaloids_LSmeans_sums_corr_pimp <- Alkaloids_LSmeans_sums_corr %>%
+  filter(Class == "S. pimpinellifolium")
+
+head(Alkaloids_LSmeans_sums_corr_pimp)
+
+Alkaloids_sums_corr_matrix_pimp <- 
+  cor(Alkaloids_LSmeans_sums_corr_pimp[,3:ncol(Alkaloids_LSmeans_sums_corr_pimp)], 
+      method = "pearson")
+
+kable(Alkaloids_sums_corr_matrix_pimp)
+
+# run cor.mtest to get pvalues and CI for each pair of inputs
+sums_cor_mtest_pimp <- cor.mtest(Alkaloids_sums_corr_matrix_pimp, 
+                            conf.level = 0.95)
+
+# save the pvalue matrix
+sums_pval_matrix_pimp <- sums_cor_mtest_pimp$p
+
+colnames(Alkaloids_sums_corr_matrix_pimp) <- axis_labels_totals %>% str_wrap(width = 24)
+rownames(Alkaloids_sums_corr_matrix_pimp) <- axis_labels_totals %>% str_wrap(width = 24)
+```
+
+Create corrplot
+
+```{r}
+corrplot_sum_pimp <- corrplot(Alkaloids_sums_corr_matrix_pimp,
+         method = "circle",
+         p.mat = sums_pval_matrix_pimp,
+         insig = "label_sig", 
+         type = "upper",
+         sig.level = c(.001, .01, .05),
+         outline = TRUE,
+         pch.cex = 1, # size of asterisks
+         pch.col = "white", # color of asterisks
+         tl.cex= 1, # size of axis text
+         tl.col= "black", # color of axis text
+         title = "S. pimpinellifolium") 
+
+corrplot_sum_pimp
+```
+
+### On all isomers
+
+```{r}
+Alkaloids_allisomers_corr_matrix <- cor(Alkaloids_LSmeans_allisomers_corr[,3:ncol(Alkaloids_LSmeans_allisomers_corr)], 
+                                  method = "pearson")
+
+kable(Alkaloids_allisomers_corr_matrix)
+
+# run cor.mtest to get pvalues and CI for each pair of inputs
+allisomers_cor_mtest <- cor.mtest(Alkaloids_allisomers_corr_matrix, 
+                            conf.level = 0.95)
+
+# save the pvalue matrix
+allisomers_pval_matrix <- allisomers_cor_mtest$p
+```
+
+Prettying up the axis labels
+
+```{r}
+axis_labels_allisomers <- c("Dehydrotomatidine",
+                 "Tomatidine",
+                 "Dehydrotomatine 1",
+                 "Dehydrotomatidine 2",
+                 "Total Dehydrotomatidine",
+                 "Alpha-Tomatine",
+                 "Hydroxytomatidine 1",
+                 "Hydroxytomatidine 2",
+                 "Hydroxytomatidine 3",
+                 "Hydroxytomatidine 4",
+                 "Total Hydroxytomatidine",
+                 "Acetoxytomatidine 1",
+                 "Acetoxytomatidine 2",
+                 "Acetoxytomatidine 3",
+                 "Total Acetoxytomatidine",
+                 "Dehydrolycoperoside F/G/Dehydroesculeoside A",
+                 "Lycoperoside F/G/Esculeoside A 1",
+                 "Lycoperoside F/G/Esculeoside A 2",
+                 "Total Lycoperoside F/G/Esculeoside A",
+                 "Escueloside B 1",
+                 "Escueloside B 2",
+                 "Escueloside B 3",
+                 "Total Escueloside B",
+                 "Total SteroidalAlkaloids")
+
+colnames(Alkaloids_allisomers_corr_matrix) <- axis_labels_allisomers %>% str_wrap(width = 24)
+rownames(Alkaloids_allisomers_corr_matrix) <- axis_labels_allisomers %>% str_wrap(width = 24)
+```
+
+Create corrplot
+
+```{r}
+corrplot_allisomers_fullpop <- corrplot(Alkaloids_allisomers_corr_matrix,
+         method = "circle",
+         p.mat = allisomers_pval_matrix,
+         insig = "label_sig", 
+         type = "upper",
+         sig.level = c(.001, .01, .05),
+         outline = TRUE,
+         pch.cex = 0.5, # size of asterisks
+         pch.col = "white", # color of asterisks
+         tl.cex= 0.5, # size of axis text
+         tl.col="black", # color of axis text
+         title = "Full Population") 
+
+corrplot_allisomers_fullpop
+```
