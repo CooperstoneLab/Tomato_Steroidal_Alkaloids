@@ -16,4 +16,28 @@ Tomato steroidal alkaloids are diverse in the red-fruited tomato clade and their
 
 ### Code
 
-The code in this repository consists of 
+The code in this repository consists of the following:
+
+#### Boxplots
+
+Boxplots show steroidal alkaloid concentrations of the 107 tomato accessions.
+
+#### PCA
+
+Principal components analysis (PCA) scores, loadings, and scree plots are shown.
+
+#### Hierarchical Clustering Solo & with PCA
+
+Hierarchical clustering was performed and then the three main clusters were overlaid on the PCA to show groups within the red-fruited clade. The same was done for wild cherry tomatoes alone.
+
+#### GWAS
+
+Genome-wide association studies (GWAS) were performed. Code for these analyses will be pushed, shortly.
+
+##### Manhattan Plots
+
+Manhattan plots were used to show significant marker-steroidal alkaloid associations detected via the GWAS.
+
+#### Correlation Analysis & Plots
+
+Correlation analysis was performed to understand relationships between concentrations of the 9 steroidal alkaloids as well as any correlations with Total Alkaloid concentration. These were conducted both with isomers measured separately as well as summed. Wild cherry was again examined in particular.
