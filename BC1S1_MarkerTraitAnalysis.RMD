@@ -1,0 +1,86 @@
+---
+title: "BC1S1 Marker Trait Analysis"
+author: "Michael Dzakovich and David Francis"
+output: html_document
+---
+
+
+```{r}
+setwd("/Users/tomato/Box/GoogleDrive_Backup/Graduate School/OSU PhD/Alkaloid Projects/MappingPopulation_CandidateGene ID/Validation")
+
+```
+#Read in genotyping data and phenotyping data
+```{r}
+## Read in dataset
+
+## Read in Phenotypic data data 155 levels of Sample_ID of 3 variables)
+
+D1 = read.csv("BC1S1AllSGAs_ug_Final_FINAL_10traits_USETHIS4QTL.csv", header=T)
+
+head(D1)
+str(D1)
+
+## Read in Marker data 
+
+D2 = read.csv("BC_Marker_Dat_Ordered.csv", header=T)
+D2[1:8,1:6]
+## merge data (will use GENOTYPE column)
+
+D3 = merge(D1, D2, by.x = "Sample_ID", by.y = "Sample_ID")
+# str(D3)  
+## markers start in row 13
+D3[1:8, 1:8]
+```
+
+```{r}
+attach(D3) #adding this makes coding the loop easier
+
+
+NamesV <- vector("list",154)
+for(j in 13:154)
+{
+NamesV[j] <- c(names(D3[j]))
+}
+
+```
+
+#Create spreadsheet of F and P-values for each marker for each trait
+```{r}
+Fanova <- vector("list",154)
+for(k in 13:154)
+{
+Fanova[k] <- c(anova(lm(Total ~ (D3[,k])))$F[1])
+}
+#as.matrix(Fanova) #display as matrix; remove ## to print
+
+#For first P value
+Panova <- vector("list",154)
+for(k in 13:154)
+{
+Panova[k] <- c(anova(lm(Total ~ (as.factor(D3[,k]))))$Pr[1])
+}
+
+Table_T1 = cbind(NamesV, Fanova, Panova)
+#head(Table_T1)
+#tail(Table_T1)
+
+write.csv(Table_T1, file="Total_ug_Final.csv")
+
+
+```
+
+#Example code for running single marker trait analysis 
+```{r}
+fitX <- lm(D3$TRAIT_OF_INTEREST ~ D3$MARKER_OF_INTEREST -1)
+anova(fitX)
+summary(fitX)
+
+##Visualize
+
+boxplot(D3$TRAIT_OF_INTEREST ~ D3$MARKER_OF_INTEREST)
+
+```
+
+
+
+
