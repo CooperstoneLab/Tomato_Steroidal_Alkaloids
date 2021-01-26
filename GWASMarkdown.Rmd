@@ -1,0 +1,1186 @@
+---
+title: "Genome Wide Association Study"
+author: David M. Francis (Modified and Compiled by Michael Dzakovich)
+output: 
+  html_document:
+    theme: sandstone
+    toc: true
+    toc_float: true
+---
+
+# Remove any extraneous objects / Set working directory
+
+```{r}
+rm(list = ls(all = TRUE))
+
+setwd("/Users/tomato/Box/michael dzakovich/alkaloids panel/diversity panel paper/RCodeAndData/GWAS")
+
+```
+
+# Phasing
+
+## Read in data
+
+```{r}
+METAB = read.csv("DiversityPanel7720SNPs_Curated.csv", header = T, colClasses = c("factor"))
+#str(METAB) ##"T" was recognized as logi (True), colClass is important
+dim(METAB)
+METAB<-as.matrix(METAB)
+METAB[1:5,1:3]
+METAB <- METAB[,-c(1,3)]
+#METAB[1:5,327:332]
+OH8243<-METAB[1,]
+METAB[1:5,1:3]
+
+```
+
+In Excel: replace FAIL to NA, move OH8243 (control) to the top (second row) Or: METAB\<-replace(METAB[],METAB[]=="FAIL",value = "NA") Remove Plate idenfification and location iformation. Column 1 = sample ID
+
+Data format should be a column ("GENO") with genotype IDs followed by columns containing SNPs and their calls for every genotype
+
+## Rephase according to OH8243 (SNP call as A).
+
+Convert from nucleotides to numbers (-1, 0, 1) for RRBLUP
+
+```{r}
+#Loop to rephase according to OH8243 (SNP call as A)
+for (i in 2:nrow(METAB)){
+  METAB[i,][(OH8243==METAB[i,])&(OH8243!="NA")]<-1
+  
+  METAB[i,][(OH8243=="AA")&(METAB[i,]=="AA")]<-1
+  METAB[i,][(OH8243=="AA")&(METAB[i,]=="TT")]<--1
+  METAB[i,][(OH8243=="AA")&(METAB[i,]=="GG")]<--1
+  METAB[i,][(OH8243=="AA")&(METAB[i,]=="CC")]<--1
+  METAB[i,][(OH8243=="AA")&(METAB[i,]=="AT")]<-0
+  METAB[i,][(OH8243=="AA")&(METAB[i,]=="TA")]<-0
+  METAB[i,][(OH8243=="AA")&(METAB[i,]=="AG")]<-0
+  METAB[i,][(OH8243=="AA")&(METAB[i,]=="GA")]<-0
+  METAB[i,][(OH8243=="AA")&(METAB[i,]=="AC")]<-0
+  METAB[i,][(OH8243=="AA")&(METAB[i,]=="CA")]<-0
+  #METAB[i,][(OH8243=="AT")&(METAB[i,]=="AT")]<-1
+  #METAB[i,][(OH8243=="AG")&(METAB[i,]=="AG")]<-1
+  #METAB[i,][(OH8243=="AC")&(METAB[i,]=="AC")]<-1
+  
+  METAB[i,][(OH8243=="TT")&(METAB[i,]=="TT")]<-1
+  METAB[i,][(OH8243=="TT")&(METAB[i,]=="AA")]<--1
+  METAB[i,][(OH8243=="TT")&(METAB[i,]=="GG")]<--1
+  METAB[i,][(OH8243=="TT")&(METAB[i,]=="CC")]<--1
+  METAB[i,][(OH8243=="TT")&(METAB[i,]=="AT")]<-0
+  METAB[i,][(OH8243=="TT")&(METAB[i,]=="TA")]<-0
+  METAB[i,][(OH8243=="TT")&(METAB[i,]=="TG")]<-0
+  METAB[i,][(OH8243=="TT")&(METAB[i,]=="GT")]<-0
+  METAB[i,][(OH8243=="TT")&(METAB[i,]=="TC")]<-0
+  METAB[i,][(OH8243=="TT")&(METAB[i,]=="CT")]<-0
+  
+  METAB[i,][(OH8243=="GG")&(METAB[i,]=="GG")]<-1
+  METAB[i,][(OH8243=="GG")&(METAB[i,]=="AA")]<--1
+  METAB[i,][(OH8243=="GG")&(METAB[i,]=="TT")]<--1
+  METAB[i,][(OH8243=="GG")&(METAB[i,]=="CC")]<--1
+  METAB[i,][(OH8243=="GG")&(METAB[i,]=="AG")]<-0
+  METAB[i,][(OH8243=="GG")&(METAB[i,]=="GA")]<-0
+  METAB[i,][(OH8243=="GG")&(METAB[i,]=="TG")]<-0
+  METAB[i,][(OH8243=="GG")&(METAB[i,]=="GT")]<-0
+  METAB[i,][(OH8243=="GG")&(METAB[i,]=="CG")]<-0
+  METAB[i,][(OH8243=="GG")&(METAB[i,]=="GC")]<-0
+  
+  METAB[i,][(OH8243=="CC")&(METAB[i,]=="CC")]<-1
+  METAB[i,][(OH8243=="CC")&(METAB[i,]=="AA")]<--1
+  METAB[i,][(OH8243=="CC")&(METAB[i,]=="TT")]<--1
+  METAB[i,][(OH8243=="CC")&(METAB[i,]=="GG")]<--1
+  METAB[i,][(OH8243=="CC")&(METAB[i,]=="CG")]<-0
+  METAB[i,][(OH8243=="CC")&(METAB[i,]=="GC")]<-0
+  METAB[i,][(OH8243=="CC")&(METAB[i,]=="AC")]<-0
+  METAB[i,][(OH8243=="CC")&(METAB[i,]=="CA")]<-0
+  METAB[i,][(OH8243=="CC")&(METAB[i,]=="TC")]<-0
+  METAB[i,][(OH8243=="CC")&(METAB[i,]=="CT")]<-0
+  
+}
+
+#Examining the output
+METAB[1:5,1:3]
+METAB[1:5,327:332]
+METAB[1:5,7710:7719]
+
+```
+
+Note: The above loop does not handle OH8243 = NA or heterozygous e.g. A/G
+
+### If your SNPs are called as single nucleotides, use the following
+
+```{r, echo=false}
+for (i in 2:nrow(METAB)){
+  METAB[i,][(OH8243==METAB[i,])&(OH8243!="NA")]<-2
+  
+  METAB[i,][(OH8243=="A")&(METAB[i,]=="A")]<-2
+  METAB[i,][(OH8243=="A")&(METAB[i,]=="T")]<-0
+  METAB[i,][(OH8243=="A")&(METAB[i,]=="G")]<-0
+  METAB[i,][(OH8243=="A")&(METAB[i,]=="C")]<-0
+  
+  METAB[i,][(OH8243=="T")&(METAB[i,]=="T")]<-2
+  METAB[i,][(OH8243=="T")&(METAB[i,]=="A")]<-0
+  METAB[i,][(OH8243=="T")&(METAB[i,]=="G")]<-0
+  METAB[i,][(OH8243=="T")&(METAB[i,]=="C")]<-0
+  
+  METAB[i,][(OH8243=="G")&(METAB[i,]=="G")]<-2
+  METAB[i,][(OH8243=="G")&(METAB[i,]=="A")]<-0
+  METAB[i,][(OH8243=="G")&(METAB[i,]=="T")]<-0
+  METAB[i,][(OH8243=="G")&(METAB[i,]=="C")]<-0
+  
+  METAB[i,][(OH8243=="C")&(METAB[i,]=="C")]<-2
+  METAB[i,][(OH8243=="C")&(METAB[i,]=="A")]<-0
+  METAB[i,][(OH8243=="C")&(METAB[i,]=="T")]<-0
+  METAB[i,][(OH8243=="C")&(METAB[i,]=="G")]<-0
+  
+  METAB[i,][(OH8243=="A")&(METAB[i,]=="A / T")]<-1
+  METAB[i,][(OH8243=="A")&(METAB[i,]=="A / G")]<-1
+  METAB[i,][(OH8243=="A")&(METAB[i,]=="A / C")]<-1
+  
+  METAB[i,][(OH8243=="T")&(METAB[i,]=="A / T")]<-1
+  METAB[i,][(OH8243=="T")&(METAB[i,]=="T / G")]<-1
+  METAB[i,][(OH8243=="T")&(METAB[i,]=="T / C")]<-1
+  
+  METAB[i,][(OH8243=="G")&(METAB[i,]=="A / G")]<-1
+  METAB[i,][(OH8243=="G")&(METAB[i,]=="T / G")]<-1
+  METAB[i,][(OH8243=="G")&(METAB[i,]=="C / G")]<-1
+  
+  METAB[i,][(OH8243=="C")&(METAB[i,]=="A / C")]<-1
+  METAB[i,][(OH8243=="C")&(METAB[i,]=="T / C")]<-1
+  METAB[i,][(OH8243=="C")&(METAB[i,]=="C / G")]<-1
+}
+
+
+```
+
+## Replace OH8243 heterozygous SNP marker(s) to 0 and drop
+
+```{r}
+METAB[1,][(METAB[1,]=="AT")|(METAB[1,]=="TA")|(METAB[1,]=="GA")|(METAB[1,]=="AG")| (METAB[1,]=="TC")|(METAB[1,]=="CT")|(METAB[1,]=="CG")| (METAB[1,]=="TG")|(METAB[1,]=="GC")]<-NA 
+
+#Or: METAB[1,][(METAB[1,]!="A")&(METAB[1,]!="T")&(METAB[1,]!="G")&(METAB[1,]!="C")]<-NA 
+METAB[1:5,1:3] 
+METAB[1:5,327:332] 
+METAB[1:5,375:380] 
+str(METAB)
+
+#Should we drop heterozygous OH8243 markers?
+
+#Drop NA OH8243 SNP markers 
+dim(METAB) METAB<-METAB[,complete.cases(METAB[1,])] #This is not working? METAB2<-METAB[,!(METAB[1,]==NA)] 
+dim(METAB)
+
+#Recode OH8243 SNP calls to A (or AA, or 1) #METAB[1,1:7593]=ifelse(METAB[1,1]=="OH8243", 2, 2) 
+METAB[1,2:7611]=ifelse(METAB[1,1]=="OH8243", 2, 2) METAB[1:5,1:3] METAB[1:5,7600:7611]
+
+#Write out the result 
+write.csv(METAB,"METAB_Marker_01.csv",row.names = FALSE) 
+##BE SURE TO DELETE FIRST ROW OF MARKERS FROM OH8243. 
+##THEN THE NEW FIRST ROW (ORINGINALLY SECOND) BECOMES THE SCORES FOR OH8243 (ALL 1's)
+```
+
+# Create marker file with physical positions
+
+Note: Column order should be MARKER, LOCUS, Phy_Chr, CHR, Phy_Posb, Ch_Mb, and then each genotype with marker scores in -1, 0, 1 format.
+
+```{r}
+library(rrBLUP)
+
+geno<-read.csv("BlancaMarkerFile_PhysicalPosition.csv", header=T)
+geno<-geno[,-c(1,3,6)]
+
+
+```
+
+### Code to remove monomorphic markers and impute missing values
+
+```{r}
+#Remove Monomorphic Markers
+##geno<-geno1[rowSums(geno1[-1] != geno1[[2]], na.rm = TRUE) != 0,]
+  
+#Impute missing values as "0.5" (approximate average of matrix)
+##geno[is.na(geno)] <- 0.5
+
+```
+
+### Code from multiple iterations of trying to rearrange the input files
+
+```{r}
+## Read in imputed marker data
+#Marker = (read.csv("BlancaMarkerFile2.csv", header =T, row.names=1))
+#ls() 
+#Marker[1:5,1:3]
+#str(Marker)
+
+#Marker2 = read.csv("SolCAP_SL4.0_raw.csv", header = T)
+#str(Marker2)
+#Marker2$cM=as.numeric(Marker2$cM)
+#Marker2$CHR=as.factor(Marker2$CHR)
+#str(Marker2)
+#Marker2[1:5,1:5]
+
+
+##Merge MarkerPositionCharacteristics to MarkerData 
+#Marker3 = merge(Marker2, Marker, by.x = "MARKER", by.y = 'row.names', all.y=T)
+#dim(Marker3)
+#Marker3[1:8, 1:8]
+#Marker4<-na.omit(Marker3)
+
+##Drop un needed columns to end up with LOCUS CHR Ch_Mb + MarkerData... 
+#Now giving us Chr, Ch_Mb + MarkerData...
+##geno1<-read.csv("PreppedMarkerFile2.csv", header=T)
+
+#Remove Monomorphic Markers
+##geno<-geno1[rowSums(geno1[-1] != geno1[[2]], na.rm = TRUE) != 0,]
+  
+#Impute missing values as "0.5" (approximate average of matrix)
+##geno[is.na(geno)] <- 0.5
+
+##geno2 <- read.csv("BlancaMarkersAndMeta.csv", header=T)
+
+##library(dplyr)
+##geno<-left_join(geno, geno2)
+
+##geno<-read.csv("Blanca_CuratedMarkerFile.csv", header=T)
+
+#geno$Locus<-as.factor(geno$Locus)
+#geno$CHR<-as.factor(geno$CHR)
+
+##geno$Locus<-as.integer(geno$Locus)
+##geno$CHR<-as.integer(geno$CHR)
+
+
+##geno=geno[,-c(1,3,4)]
+##geno=geno[-c(6832:6880),]#Remove NAs at bottom of dataset 
+##geno[1:5, 1:15] 
+##geno[1:5, 82:86]
+##dim(geno)
+##str(geno)
+##write.csv(geno, "BlancaMarkerFile.csv", row.names=FALSE)
+
+#Skipping the above code and reading in a curated marker file that is formatted
+#the same as David's input 
+##geno<-read.csv("BlancaMarkerFile.csv", header=T) 
+
+
+#MyMarkers <- read.csv("BlancaMarkerFile2.csv", header=T)
+#DavidMarkers <-read.csv("SolCAP_SL4.0_raw.csv", header=T)
+
+#library(dplyr)
+
+#test<-left_join(MyMarkers, DavidMarkers)
+
+#write.csv(test, "FINALMergedMarkers_PhysicalPosition.csv", row.names = FALSE)
+
+```
+
+## Read in phenotype data
+
+```{r}
+Pheno = read.csv("GWAS_ALK_DATA3.csv", header =T)
+Pheno[1:5,]
+dim(Pheno)
+
+#GenosOfInterest <- read.csv("BlancaGenotypesOfInterest.csv", header=T)
+#dim(GenosOfInterest)
+#Pheno = left_join(GenosOfInterest, Pheno)
+
+Pheno2 = Pheno[,c(1,2)] #GENOTYPE & Tomatidenol
+
+Pheno3 = Pheno[,c(1,3)]   #GENOTYPE & Tomatidine
+
+Pheno4 = Pheno[,c(1,4)] #GENOTYPE & TotalDehydrotomatine
+
+Pheno5 = Pheno[,c(1,5)] #GENOTYPE & Tomatine
+
+Pheno6 = Pheno[,c(1,6)] #GENOTYPE & TotalHydroxytomatine
+
+Pheno7 = Pheno[,c(1,7)] #GENOTYPE & TotalAcetoxytomatine
+
+Pheno8 = Pheno[,c(1,8)] #GENOTYPE & DehydrolycoFGA
+
+Pheno9 = Pheno[,c(1,9)] #GENOTYPE & TotalLycoFGEscA
+
+Pheno10 = Pheno[,c(1,10)] #GENOTYPE & TotalEsculeosideB
+
+Pheno11 = Pheno[,c(1,11)] #GENOTYPE & Total
+
+dim(Pheno2)
+dim(Pheno3)
+dim(Pheno4)
+dim(Pheno5)
+dim(Pheno6)
+dim(Pheno7)
+```
+
+## Naive regression with RRBLUP
+
+```{r}
+#Might be best to just open the file below and run the functions manually#
+#Can also open "GWAS-1.utils.R" in a seperate tab if it's not being read in#
+source("GWAS-1.utils.R")
+M <- t(geno[,-c(1:3)])   #Originally 1:3. Changed to 1:4 when I tested including Marker names
+dim(M)
+m <- ncol(M)  #number of markers
+n <- nrow(M)  #number of lines
+m
+n
+#str(geno)
+#str(M)
+
+R2 <- rep(0,m)
+naive.p <- rep(0,m)
+for (i in 1:m) {
+	naive.ans <- lm(y~SNP,data=data.frame(y=Pheno3$Tomatidine,SNP=M[,i]))
+	naive.p[i] <- summary(naive.ans)$coeff[2,4]
+	R2[i] <- summary(naive.ans)$r.squared
+}
+manhattan(cbind(geno[,c(1:3)],-log10(naive.p))) #Originally 1:3
+
+ls()
+
+```
+
+## Association analysis using "K" model with Kinship specified by default (A.Mat)
+
+rrBLUP is using EMMA
+
+```{r}
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit1 = GWAS(Pheno11,geno,min.MAF=.05,P3D=FALSE) 
+
+# K model A.mat default for kinship correction
+##When P3D=TRUE, variance components are estimated by REML 
+##only once, without any markers in the model. When P3D=FALSE, 
+##variance components are estimated by REML for each marker separately
+
+summary(fit1)
+ls(fit1)
+head(fit1)
+
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit1a = GWAS(Pheno11, geno, n.PC=1,min.MAF = 0.05, P3D = FALSE)# QK model with Q = 3 PCA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit1b = GWAS(Pheno11, geno, n.PC=2,min.MAF = 0.05, P3D = FALSE)# QK model with Q = 3 PCA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit1c = GWAS(Pheno11, geno, n.PC=3,min.MAF = 0.05, P3D = FALSE)# QK model with Q = 3 PCA
+
+# Write out -logP for K, PC = 1, 2, 3
+ls()
+head(fit1)
+Fit_Total = cbind(fit1, fit1a, fit1b, fit1c)
+head(Fit_Total)
+dim(Fit_Total)
+write.csv(Fit_Total, "Blanca_GWAS_MTEB_TotaltSGAs.csv")
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit2 = GWAS(Pheno5,geno,min.MAF=.05,P3D=FALSE) # K model A.mat default for kinship correction
+##When P3D=TRUE, variance components are estimated by REML 
+##only once, without any markers in the model. When P3D=FALSE, 
+##variance components are estimated by REML for each marker separately
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit2a = GWAS(Pheno5, geno, n.PC=1,min.MAF = 0.05, P3D = FALSE)# QK model with Q = 3 PCA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit2b = GWAS(Pheno5, geno, n.PC=2,min.MAF = 0.05, P3D = FALSE)# QK model with Q = 3 PCA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit2c = GWAS(Pheno5, geno, n.PC=3,min.MAF = 0.05, P3D = FALSE)# QK model with Q = 3 PCA
+
+# Write out -logP for K, PC = 1, 2, 3
+ls()
+head(fit2)
+Fit_aToM = cbind(fit2, fit2a, fit2b, fit2c)
+head(Fit_aToM)
+dim(Fit_aToM)
+write.csv(Fit_aToM, "Blanca_GWAS_MTEB_Fit_aToMtSGAs.csv")
+
+## next trait
+## TotalLycoFGEscA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit3 = GWAS(Pheno9,geno,min.MAF=.05,P3D=FALSE) # K model A.mat default for kinship correction
+
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit3a = GWAS(Pheno9, geno, n.PC=1,min.MAF = 0.05, P3D = FALSE)# QK model with Q = 3 PCA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit3b = GWAS(Pheno9, geno, n.PC=2,min.MAF = 0.05, P3D = FALSE)# QK model with Q = 3 PCA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit3c = GWAS(Pheno9, geno, n.PC=3,min.MAF = 0.05, P3D = FALSE)# QK model with Q = 3 PCA
+
+# Write out -logP for K, PC = 1, 2, 3
+ls()
+head(fit3)
+Fit_aToM = cbind(fit3, fit3a, fit3b, fit3c)
+head(Fit_aToM)
+dim(Fit_aToM)
+write.csv(Fit_aToM, "Blanca_GWAS_MTEB_TotalLycoFGEscAtSGAs.csv")
+
+
+
+## next trait
+## TotalLycoFGEscA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit4 = GWAS(Pheno10,geno,min.MAF=.05,P3D=FALSE) # K model A.mat default for kinship correction
+
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit4a = GWAS(Pheno10, geno, n.PC=1,min.MAF = 0.05, P3D = FALSE)# QK model with Q = 3 PCA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit4b = GWAS(Pheno10, geno, n.PC=2,min.MAF = 0.05, P3D = FALSE)# QK model with Q = 3 PCA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit4c = GWAS(Pheno10, geno, n.PC=3,min.MAF = 0.05, P3D = FALSE)# QK model with Q = 3 PCA
+
+# Write out -logP for K, PC = 1, 2, 3
+ls()
+head(fit4)
+Fit_TotalEsculeosideB = cbind(fit4, fit4a, fit4b, fit4c)
+head(Fit_TotalEsculeosideB)
+dim(Fit_TotalEsculeosideB)
+write.csv(Fit_TotalEsculeosideB, "Blanca_GWAS_MTEB_TotalEsculeosideBtSGAs.csv")
+
+
+
+```
+
+# Principal components analysis (PCA) for population structure
+
+```{r}
+PCAdata = read.table("BlancaMarkerFile_PCA.csv", header = T, sep = ",")
+attach(PCAdata)
+#detach(PCAdata)
+#PCA data should be formated as a column of genotypes (GENO) followed by columns for each marker containing SNP calls (in -1,0,1 format) for each marker in each genotype
+
+
+# Run the PCA
+
+Datax = prcomp(PCAdata[,-1], retx=TRUE, center=TRUE,scale. = TRUE)
+
+# The following error indicates that you NEED TO REMOVE MONOMORPHIC MARKERS
+# Error in prcomp.default(PCAdata2[, -1], retx = TRUE, center = TRUE, scale. = TRUE) : 
+# cannot rescale a constant/zero column to unit variance
+
+#assign the contribution of each PC
+scores <- Datax$x
+# assign PC standard deviations
+sd <- Datax$sdev
+# to return loadings by marker
+loadings <- Datax$rotation
+# modification $rotation[,1:3] will return only first 3 PC
+
+#### stuff to try
+#>Datax # returns standard deviations and rotation (PC by marker)
+#>summary(Datax) #returns summary of PC (sdev, prop. of variance, cum. tot.)
+#>scores # returns PC by taxon
+#> plot(Datax)  # plots the variance by PC
+#>screeplot(Datax) # same as above
+#>plot(Datax, type = "lines")
+#> biplot(Datax) # biplot of the rotation (e.g. msarker contribution)
+
+# loadings by marker
+# file will list markers in the form of X1, X4, X5, etc... 
+# followed by loadings for PCA 1 through PCA140
+summary(Datax)
+write.csv(loadings, "Blanca_markerpca.csv")
+
+# loadings by TAXON
+# file will list accessions in the form of 1, 2, 3, etc...
+# followed by loadings for PCA 1 through PCA140
+#  NOTE:  scores2, below, will link with names (therefore skip)
+#  write.csv(scores, "Accessionpca.csv")
+
+plot(scores[,1], scores[,2], xlab="PCA 1", ylab="PCA 2", main="PC 1 vs PC 2") 
+
+
+     
+PCAdata1 = PCAdata[,-1]
+PCAdata[1:5, 1:4]
+PCAdata1[1:5, 1:4]
+datax1<-data.matrix(PCAdata1)
+datay = t(datax1)
+data<-datax1%*%datay
+
+dim(data)
+
+Datax2 = prcomp(data, retx=TRUE, center=TRUE,scale. = TRUE)
+summary(Datax2)
+#Importance of components:
+#                         PC1    PC2     PC3    PC4    PC5     PC6     PC7     PC8    PC9
+#Standard deviation     8.376 4.4013 2.08077 0.8281 0.6929 0.62748 0.55170 0.48969 0.4538
+#Proportion of Variance 0.716 0.1977 0.04418 0.0070 0.0049 0.00402 0.00311 0.00245 0.0021
+#Cumulative Proportion  0.716 0.9136 0.95781 0.9648 0.9697 0.97372 0.97683 0.97927 0.9814
+
+scores2 <- Datax2$x
+plot(scores2[,1], scores2[,2], xlab="PCA 1", ylab="PCA 2", main="NxN PC 1 vs PC 2")
+
+
+### consider adding "passport data" for visualization
+dim(scores2)
+head(scores2)
+PCAdatax = as.matrix(PCAdata[,1])
+head(PCAdatax)
+
+DataNEW = cbind(PCAdatax, scores2) # by.x = "GENO", by.y = "GENO"))
+dim(DataNEW)
+head(DataNEW)
+DataNEW_5PCA <- DataNEW[1:84,1:6]
+#write.csv(DataNEW, "Blanca_PCA_Div_Panel.csv")
+write.csv(DataNEW_5PCA, "Blanca_PCA_5_Div_Panel.csv", row.names=FALSE)
+
+Class<-read.csv("SGAClass.csv", header=T)
+Blanca<-read.csv("Blanca_PCA_5_Div_Panel.csv", header=T)
+PCA5Class<-left_join(Blanca, Class)
+
+write.csv(PCA5Class, "Blanca_PCA_5_Div_Panel2.csv", row.names=FALSE)
+
+```
+
+### Visualize PCA
+
+```{r}
+####
+library(ggplot2)
+PCAData<-read.csv("Blanca_PCA_5_Div_Panel2.csv", header=T)
+PCAData$Class <- factor(PCAData$Class, levels = c("Cultivated Processing", 
+                                                  "Cultivated Cherry", 
+                                                  "Wild Cherry", 
+                                                  "S. pimpinellifolium"))
+
+PCAData %>%
+  ggplot(aes(x = PC1, y = PC2, fill = Class, shape = Class)) +
+  geom_point(size = 4, alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  scale_shape_manual(values=c(24,22,22,21),
+                     labels = expression("Cultivated Processing", 
+                                         "Cultivated Cherry",
+                                         "Wild Cherry", 
+                                         italic("S. pimpinellifolium"))) +
+  scale_fill_manual(values = c("purple", "blue", "gold", "red2"),
+                    labels = expression("Cultivated Processing", 
+                                        "Cultivated Cherry", 
+                                        "Wild Cherry", 
+                                        italic("S. pimpinellifolium"))) +
+  theme_classic() + 
+  theme(text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        legend.text.align = 0) +
+  labs(title = "",
+       x = "PC1",
+       y = "PC2") 
+
+ggsave("BlancaGWASPCA_PC1PC2.png",
+       dpi=800, width = 9, height = 6, units ="in", device="jpeg", 
+       path="/Users/tomato/Box/michael dzakovich/alkaloids panel/diversity panel paper/RCodeAndData/GWAS")
+
+####
+PCAData %>%
+  ggplot(aes(x = PC2, y = PC3, fill = Class, shape = Class)) +
+  geom_point(size = 4, alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", alpha = 0.6) +
+  scale_shape_manual(values=c(24,22,22,21),
+                     labels = expression("Cultivated Processing", 
+                                         "Cultivated Cherry",
+                                         "Wild Cherry", 
+                                         italic("S. pimpinellifolium"))) +
+  scale_fill_manual(values = c("purple", "blue", "gold", "red2"),
+                    labels = expression("Cultivated Processing", 
+                                        "Cultivated Cherry", 
+                                        "Wild Cherry", 
+                                        italic("S. pimpinellifolium"))) +
+  theme_classic() + 
+  theme(text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        legend.text.align = 0) +
+  labs(title = "",
+       x = "PC2",
+       y = "PC3") 
+
+ggsave("BlancaGWASPCA_PC2PC3.png",
+       dpi=800, width = 9, height = 6, units ="in", device="jpeg", 
+       path="/Users/tomato/Box/michael dzakovich/alkaloids panel/diversity panel paper/RCodeAndData/GWAS")
+
+
+####
+
+
+
+Plot1 = read.table("Blanca_PCA_5_Div_Panel2.csv", header = T, sep = ",")
+attach(Plot1)
+head(Plot1)
+plot(PC1, PC2, xlab="PCA 1", ylab="PCA 2", main="PC 1 vs PC 2", 
+     pch = (17+(as.numeric(Class))), col = ((as.numeric(Class))))
+
+plot(PC2, PC3, xlab="PCA 2", ylab="PCA 3", main="PC 2 vs PC 3", 
+     pch = (17+(as.numeric(Class))), col = ((as.numeric(Class))))
+
+```
+
+# Model testing using different number of PCs
+
+```{r}
+MARK1 = read.csv("BlancaMarkerFile_PCA.csv", header = T)
+dim(MARK1)
+METAB1 = read.csv("GWAS_ALK_DATA3.csv", header = T)
+dim(METAB1)
+
+PCA1 = read.csv("Blanca_PCA_5_Div_Panel2.csv")
+dim(PCA1)
+
+DATA1 = merge(MARK1, METAB1, by.x = "GENO", by.y = "GENO")
+dim(DATA1)
+
+DATA2 = merge(PCA1, DATA1, by.x = "GENO", by.y = "GENO")
+dim(DATA2)
+DATA2[1:3,6840:6848]
+
+attach(DATA2)
+#write.csv(DATA2, "DATA2.csv")
+
+#boxplot(DATA2, log(Total) ~ solcap_snp_sl_7942)
+
+boxplot(log(Tomatine)~solcap_snp_sl_14355,data=DATA2)
+
+#David's default SNP to test was 61192. I'm not sure why that one was selected to be honest.
+#I will try that one as well as 14355 which seems to be strongly associated with Total
+#and Tomatine. 
+
+
+fit1 = lm(Total ~ as.factor(solcap_snp_sl_61192), data=DATA2)
+anova(fit1)
+summary(fit1)
+
+fit1a = lm(Total ~ PC1 + as.factor(solcap_snp_sl_61192), data=DATA2)
+anova(fit1a)
+summary(fit1a)
+anova(fit1, fit1a)
+
+fit1b = lm(Total ~ PC1 + PC2 + as.factor(solcap_snp_sl_61192), data=DATA2)
+anova(fit1b)
+summary(fit1b)
+anova(fit1a, fit1b)
+
+fit1c = lm(Total ~ PC1 + PC2 + PC3 + as.factor(solcap_snp_sl_61192), data=DATA2)
+anova(fit1c)
+summary(fit1c)
+anova(fit1b, fit1c)
+
+
+BIC(fit1)
+BIC(fit1a)
+BIC(fit1b)
+BIC(fit1c)
+
+summary(fit1)
+summary(fit1a)
+summary(fit1b)
+summary(fit1c)
+
+#### Loops for each model. Be sure to substitute the analyte each time you run this set of loops
+##I'm sure there's a way to get this to run all at once using a nested loop, but my coding skills
+##stop here. 
+
+markerlist <- names(DATA2)[8:6831]
+phenolist <- names(DATA2)[6839:6848]
+#K model
+model <- lapply(markerlist, function(x) {
+  lm(substitute(i ~ DATA2$Total,            #Swap out the variable ("Total" in this case)
+                list(i = as.name(x))), 
+     data = DATA2)
+})
+
+names(model)<-markerlist
+lapply(model,anova)
+
+BIC1<- lapply(model, function(model) BIC(lm(model)))
+
+##
+#1 PC model
+model <- lapply(markerlist, function(x) {
+  lm(substitute(i ~ DATA2$Total + DATA2$PC1,  #Swap out the variable ("Total" in this case)
+                list(i = as.name(x))), 
+     data = DATA2)
+})
+
+names(model)<-markerlist
+lapply(model,anova)
+
+BIC1a<- lapply(model, function(model) BIC(lm(model)))
+
+##
+#2 PC model
+model <- lapply(markerlist, function(x) {
+  lm(substitute(i ~ DATA2$Total + DATA2$PC1 + DATA2$PC2, #Swap out the variable ("Total" in this case)
+                list(i = as.name(x))), 
+     data = DATA2)
+})
+
+names(model)<-markerlist
+lapply(model,anova)
+
+BIC1b<- lapply(model, function(model) BIC(lm(model)))
+
+##
+#3 PC model
+model <- lapply(markerlist, function(x) {
+  lm(substitute(i ~ DATA2$Total + DATA2$PC1 + DATA2$PC2 + DATA2$PC3,  #Swap out the variable ("Total" in this case)
+                list(i = as.name(x))), 
+     data = DATA2)
+})
+
+names(model)<-markerlist
+lapply(model,anova)
+
+BIC1c<- lapply(model, function(model) BIC(lm(model)))
+
+##
+
+BIC1<-as.data.frame(BIC1)
+BIC1a<-as.data.frame(BIC1a)
+BIC1b<-as.data.frame(BIC1b)
+BIC1c<-as.data.frame(BIC1c)
+
+TotalBIC<-rbind(BIC1, BIC1a, BIC1b, BIC1c) #Swap out the title ("Total" in this case)
+
+write.csv(TotalBIC, "TotalBIC.csv", row.names = FALSE) #Swap out the title ("Total" in this case)
+
+```
+
+A .csv file has been generated containing for rows of BIC values for K, K+PC1, K+PC1+PC2, and K+PC1+PC2+PC3 models. This information has been manually transformed and summarized in "ModelComparisonsResults.xlsx" saved under "BlancaGWAS_Results". The largest value in each row was highlighted and then all highlighted values were counted. The "best" model was determined by which model performed best the majority of the time (K + PC1 in this case). Now, we can actually conduct the GWAS using the K + PC1 model for each analyte.
+
+# GWAS
+
+```{r}
+### below is to run Q + K with Q = PC =1 for all ten traits
+
+library(rrBLUP)
+
+geno<-read.csv("BlancaMarkerFile_PhysicalPosition.csv", header=T)
+geno<-geno[,-c(1,3,6)]
+
+Pheno = read.csv("GWAS_ALK_DATA3.csv", header =T)
+Pheno[1:5,]
+dim(Pheno)
+
+#GenosOfInterest <- read.csv("BlancaGenotypesOfInterest.csv", header=T)
+#dim(GenosOfInterest)
+#Pheno = left_join(GenosOfInterest, Pheno)
+
+Pheno2 = Pheno[,c(1,2)] #GENOTYPE & Tomatidenol
+
+Pheno3 = Pheno[,c(1,3)]   #GENOTYPE & Tomatidine
+
+Pheno4 = Pheno[,c(1,4)] #GENOTYPE & TotalDehydrotomatine
+
+Pheno5 = Pheno[,c(1,5)] #GENOTYPE & Tomatine
+
+Pheno6 = Pheno[,c(1,6)] #GENOTYPE & TotalHydroxytomatine
+
+Pheno7 = Pheno[,c(1,7)] #GENOTYPE & TotalAcetoxytomatine
+
+Pheno8 = Pheno[,c(1,8)] #GENOTYPE & DehydrolycoFGA
+
+Pheno9 = Pheno[,c(1,9)] #GENOTYPE & TotalLycoFGEscA
+
+Pheno10 = Pheno[,c(1,10)] #GENOTYPE & TotalEsculeosideB
+
+Pheno11 = Pheno[,c(1,11)] #GENOTYPE & Total
+
+
+########
+
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit_2 = GWAS(Pheno2, geno, n.PC=1,min.MAF = 0.05)# QK model with Q = 1 PCA
+
+
+
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit_3 = GWAS(Pheno3, geno, n.PC=1,min.MAF = 0.05)# QK model with Q = 1 PCA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit_4 = GWAS(Pheno4, geno, n.PC=1,min.MAF = 0.05)# QK model with Q = 1 PCA
+
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit_5 = GWAS(Pheno5, geno, n.PC=1,min.MAF = 0.05)# QK model with Q = 1 PCA
+
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit_6 = GWAS(Pheno6, geno, n.PC=1,min.MAF = 0.05)# QK model with Q = 1 PCA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit_7 = GWAS(Pheno7, geno, n.PC=1,min.MAF = 0.05)# QK model with Q = 1 PCA
+
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit_8 = GWAS(Pheno8, geno, n.PC=1,min.MAF = 0.05)# QK model with Q = 1 PCA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit_9 = GWAS(Pheno9, geno, n.PC=1,min.MAF = 0.05)# QK model with Q = 1 PCA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit_10 = GWAS(Pheno10, geno, n.PC=1,min.MAF = 0.05)# QK model with Q = 1 PCA
+
+dev.new()
+dev1 = dev.cur()
+dev.new()
+dev.set(dev1)
+fit_11 = GWAS(Pheno11, geno, n.PC=1,min.MAF = 0.05)# QK model with Q = 1 PCA
+
+Fit_Data = cbind(fit_2, fit_3, fit_4, fit_5, fit_6, fit_7, fit_8, fit_9, fit_10, fit_11)
+head(Fit_Data)
+dim(Fit_Data)
+write.csv(Fit_Data, "Blanca_GWAS_METAB_QK_LogP.csv")
+```
+
+Godspeed.
+
+# Single Marker Trait Analysis 
+This is something nice you can do after running a GWAS to determine the contributions of individual markers for each trait, to see what allele is contributing to the effect (rare vs. common), and calculate signficance values for individual markers. To calculate "effect", subtract the common allele value from the rare allele value. 
+
+```{r}
+setwd("/Users/tomato/Box/michael dzakovich/alkaloids panel/diversity panel paper/RCodeAndData/GWAS/BlancaGWAS_Results")
+
+MarkerMatrix <- read.csv("BlancaMarkerSingleTraitAnalysisMatrix.csv", header=T)
+
+#####
+
+#Tomatidenol
+TomatidenolGWAS <- read.csv("Blanca_TomatidenolMarkers.csv", header=T)
+
+TomatidenolList<-as.character(TomatidenolGWAS$MARKER)
+TomatidenolMeta<- MarkerMatrix[ ,c("GENO", "Tomatidenol")]
+TomatidenolMarkers<- MarkerMatrix[ ,which((names(MarkerMatrix) %in% TomatidenolList)==TRUE)]
+TomatidenolMarkers<-mutate_if(TomatidenolMarkers, is.integer, as.factor)
+TomatidenolMarkers<-mutate_if(TomatidenolMarkers, is.numeric, as.factor)
+TomatidenolResults <- cbind(TomatidenolMeta, TomatidenolMarkers)
+
+#Tomatidine
+TomatidineGWAS <- read.csv("Blanca_TomatidineMarkers.csv", header=T)	
+
+TomatidineList<-as.character(TomatidineGWAS$MARKER)
+TomatidineMeta<- MarkerMatrix[ ,c("GENO", "Tomatidine")]
+TomatidineMarkers<- MarkerMatrix[ ,which((names(MarkerMatrix) %in% TomatidineList)==TRUE)]
+TomatidineMarkers<-mutate_if(TomatidineMarkers, is.integer, as.factor)
+TomatidineMarkers<-mutate_if(TomatidineMarkers, is.numeric, as.factor)
+TomatidineResults <- cbind(TomatidineMeta, TomatidineMarkers)
+
+#TotalDehydrotomatine
+TotalDehydrotomatineGWAS <- read.csv("Blanca_TotalDehydrotomatineMarkers.csv", header=T)	
+
+TotalDehydrotomatineList<-as.character(TotalDehydrotomatineGWAS$MARKER)
+TotalDehydrotomatineMeta<- MarkerMatrix[ ,c("GENO", "TotalDehydrotomatine")]
+TotalDehydrotomatineMarkers<- MarkerMatrix[ ,which((names(MarkerMatrix) %in% TotalDehydrotomatineList)==TRUE)]
+TotalDehydrotomatineMarkers<-mutate_if(TotalDehydrotomatineMarkers, is.integer, as.factor)
+TotalDehydrotomatineMarkers<-mutate_if(TotalDehydrotomatineMarkers, is.numeric, as.factor)
+TotalDehydrotomatineResults <- cbind(TotalDehydrotomatineMeta, TotalDehydrotomatineMarkers)
+
+#Tomatine
+TomatineGWAS <- read.csv("Blanca_TomatineMarkers.csv", header=T)	
+
+TomatineList<-as.character(TomatineGWAS$MARKER)
+TomatineMeta<- MarkerMatrix[ ,c("GENO", "Tomatine")]
+TomatineMarkers<- MarkerMatrix[ ,which((names(MarkerMatrix) %in% TomatineList)==TRUE)]
+TomatineMarkers<-mutate_if(TomatineMarkers, is.integer, as.factor)
+TomatineMarkers<-mutate_if(TomatineMarkers, is.numeric, as.factor)
+TomatineResults <- cbind(TomatineMeta, TomatineMarkers)
+
+#TotalHydroxytomatine
+TotalHydroxytomatineGWAS <- read.csv("Blanca_TotalHydroxytomatineMarkers.csv", header=T)
+
+TotalHydroxytomatineList<-as.character(TotalHydroxytomatineGWAS$MARKER)
+TotalHydroxytomatineMeta<- MarkerMatrix[ ,c("GENO", "TotalHydroxytomatine")]
+TotalHydroxytomatineMarkers<- MarkerMatrix[ ,which((names(MarkerMatrix) %in% TotalHydroxytomatineList)==TRUE)]
+TotalHydroxytomatineMarkers<-mutate_if(TotalHydroxytomatineMarkers, is.integer, as.factor)
+TotalHydroxytomatineMarkers<-mutate_if(TotalHydroxytomatineMarkers, is.numeric, as.factor)
+TotalHydroxytomatineResults <- cbind(TotalHydroxytomatineMeta, TotalHydroxytomatineMarkers)
+
+#TotalAcetoxytomatine
+TotalAcetoxytomatineGWAS <- read.csv("Blanca_TotalAcetoxytomatineMarkers.csv", header=T)	
+
+TotalAcetoxytomatineList<-as.character(TotalAcetoxytomatineGWAS$MARKER)
+TotalAcetoxytomatineMeta<- MarkerMatrix[ ,c("GENO", "TotalAcetoxytomatine")]
+TotalAcetoxytomatineMarkers<- MarkerMatrix[ ,which((names(MarkerMatrix) %in% TotalAcetoxytomatineList)==TRUE)]
+TotalAcetoxytomatineMarkers<-mutate_if(TotalAcetoxytomatineMarkers, is.integer, as.factor)
+TotalAcetoxytomatineMarkers<-mutate_if(TotalAcetoxytomatineMarkers, is.numeric, as.factor)
+TotalAcetoxytomatineResults <- cbind(TotalAcetoxytomatineMeta, TotalAcetoxytomatineMarkers)
+
+#DehydrolycoFGEscA
+DehydrolycoFGAGWAS <- read.csv("Blanca_DehydrolycoFGEscAMarkers.csv", header=T)	
+
+DehydrolycoFGAList<-as.character(DehydrolycoFGAGWAS$MARKER)
+DehydrolycoFGAMeta<- MarkerMatrix[ ,c("GENO", "DehydrolycoFGA")]
+DehydrolycoFGAMarkers<- MarkerMatrix[ ,which((names(MarkerMatrix) %in% DehydrolycoFGAList)==TRUE)]
+DehydrolycoFGAMarkers<-mutate_if(DehydrolycoFGAMarkers, is.integer, as.factor)
+DehydrolycoFGAMarkers<-mutate_if(DehydrolycoFGAMarkers, is.numeric, as.factor)
+DehydrolycoFGAResults <- cbind(DehydrolycoFGAMeta, DehydrolycoFGAMarkers)
+
+#TotalLycoFGEscA
+TotalLycoFGEscAGWAS <- read.csv("Blanca_TotalLycoFGEscAMarkers.csv", header=T)	
+
+TotalLycoFGEscAList<-as.character(TotalLycoFGEscAGWAS$MARKER)
+TotalLycoFGEscAMeta<- MarkerMatrix[ ,c("GENO", "TotalLycoFGEscA")]
+TotalLycoFGEscAMarkers<- MarkerMatrix[ ,which((names(MarkerMatrix) %in% TotalLycoFGEscAList)==TRUE)]
+TotalLycoFGEscAMarkers<-mutate_if(TotalLycoFGEscAMarkers, is.integer, as.factor)
+TotalLycoFGEscAMarkers<-mutate_if(TotalLycoFGEscAMarkers, is.numeric, as.factor)
+TotalLycoFGEscAResults <- cbind(TotalLycoFGEscAMeta, TotalLycoFGEscAMarkers)
+
+#TotalEsculeosideB
+TotalEsculeosideBGWAS <- read.csv("Blanca_TotalEsculeosideBMarkers.csv", header=T)	
+
+TotalEsculeosideBList<-as.character(TotalEsculeosideBGWAS$MARKER)
+TotalEsculeosideBMeta<- MarkerMatrix[ ,c("GENO", "TotalEsculeosideB")]
+TotalEsculeosideBMarkers<- MarkerMatrix[ ,which((names(MarkerMatrix) %in% TotalEsculeosideBList)==TRUE)]
+TotalEsculeosideBMarkers<-mutate_if(TotalEsculeosideBMarkers, is.integer, as.factor)
+TotalEsculeosideBMarkers<-mutate_if(TotalEsculeosideBMarkers, is.numeric, as.factor)
+TotalEsculeosideBResults <- cbind(TotalEsculeosideBMeta, TotalEsculeosideBMarkers)
+
+#Total
+TotalGWAS <- read.csv("Blanca_TotalMarkers.csv", header=T)
+
+TotalList<-as.character(TotalGWAS$MARKER)
+TotalMeta<- MarkerMatrix[ ,c("GENO", "Total")]
+TotalMarkers<- MarkerMatrix[ ,which((names(MarkerMatrix) %in% TotalList)==TRUE)]
+TotalMarkers<-mutate_if(TotalMarkers, is.integer, as.factor)
+TotalMarkers<-mutate_if(TotalMarkers, is.numeric, as.factor)
+TotalResults <- cbind(TotalMeta, TotalMarkers)
+
+```
+
+```{r}
+
+setwd("/Users/tomato/Box/michael dzakovich/alkaloids panel/diversity panel paper/RCodeAndData/GWAS/BlancaGWAS_Results")
+
+#Sorry, this is going to suck. So once these .csv files are generated, you need to go in and filter the singular column for the individual marker names as well as the individual factors (e.g. 1, 0, -1) so you can only see which allele is contributing to the effect as well as individual estimates for each allele. Please find a statistician to teach you how to not have to do this shit anymore. 
+
+#####
+
+#Tomatidenol
+Tomatidenol.models <- TomatidenolResults[ , -grep("Tomatidenol", names(TomatidenolResults))] %>%
+  map(~ lm(TomatidenolResults$Tomatidenol ~ .x -1))
+
+sink("TomatidenolSummaries.csv")
+Tomatidenol.summaries<-lapply(Tomatidenol.models, summary)
+Tomatidenol.summaries
+sink()
+
+#Tomatidine
+Tomatidine.models = TomatidineResults[ , -grep("Tomatidine", names(TomatidineResults))] %>% map(~ lm(TomatidineResults$Tomatidine ~ .x -1))
+
+sink("TomatidineSummaries.csv")
+Tomatidine.summaries<-lapply(Tomatidine.models, summary)
+Tomatidine.summaries
+sink()
+
+#TotalDehydrotomatine
+TotalDehydrotomatine.models = TotalDehydrotomatineResults[ , -grep("TotalDehydrotomatine", names(TotalDehydrotomatineResults))] %>% map(~ lm(TotalDehydrotomatineResults$TotalDehydrotomatine ~ .x -1))
+
+sink("TotalDehydrotomatineSummaries.csv")
+TotalDehydrotomatine.summaries<-lapply(TotalDehydrotomatine.models, summary)
+TotalDehydrotomatine.summaries
+sink()
+
+#Tomatine
+Tomatine.models = TomatineResults[ , -grep("Tomatine", names(TomatineResults))] %>%
+  map(~ lm(TomatineResults$Tomatine ~ .x -1))
+
+sink("TomatineSummaries.csv")
+Tomatine.summaries<-lapply(Tomatine.models, summary)
+Tomatine.summaries
+sink()
+
+#TotalHydroxytomatine
+TotalHydroxytomatine.models = TotalHydroxytomatineResults[ , -grep("TotalHydroxytomatine", names(TotalHydroxytomatineResults))] %>%
+  map(~ lm(TotalHydroxytomatineResults$TotalHydroxytomatine ~ .x -1))
+
+sink("TotalHydroxytomatineSummaries.csv")
+TotalHydroxytomatine.summaries<-lapply(TotalHydroxytomatine.models, summary)
+TotalHydroxytomatine.summaries
+sink()
+
+#TotalAcetoxytomatine
+TotalAcetoxytomatine.models = TotalAcetoxytomatineResults[ , -grep("TotalAcetoxytomatine", names(TotalAcetoxytomatineResults))] %>%
+  map(~ lm(TotalAcetoxytomatineResults$TotalAcetoxytomatine ~ .x -1))
+
+sink("TotalAcetoxytomatineSummaries.csv")
+TotalAcetoxytomatine.summaries<-lapply(TotalAcetoxytomatine.models, summary)
+TotalAcetoxytomatine.summaries
+sink()
+
+#DehydrolycoFGEscA
+DehydrolycoFGEscA.models = DehydrolycoFGAResults[ , -grep("DehydrolycoFGA", names(DehydrolycoFGAResults))] %>%
+  map(~ lm(DehydrolycoFGAResults$DehydrolycoFGA ~ .x -1))
+
+sink("DehydrolycoFGEscASummaries.csv")
+DehydrolycoFGEscA.summaries<-lapply(DehydrolycoFGEscA.models, summary)
+DehydrolycoFGEscA.summaries
+sink()
+
+#TotalLycoFGEscA
+TotalLycoFGEscA.models = TotalLycoFGEscAResults[ , -grep("TotalLycoFGEscA", names(TotalLycoFGEscAResults))] %>%
+  map(~ lm(TotalLycoFGEscAResults$TotalLycoFGEscA ~ .x -1))
+
+sink("TotalLycoFGEscASummaries.csv")
+TotalLycoFGEscA.summaries<-lapply(TotalLycoFGEscA.models, summary)
+TotalLycoFGEscA.summaries
+sink()
+
+#TotalEsculeosideB
+TotalEsculeosideB.models = TotalEsculeosideBResults[ , -grep("TotalEsculeosideB", names(TotalEsculeosideBResults))] %>%
+  map(~ lm(TotalEsculeosideBResults$TotalEsculeosideB ~ .x -1))
+
+sink("TotalEsculeosideBSummaries.csv")
+TotalEsculeosideB.summaries<-lapply(TotalEsculeosideB.models, summary)
+TotalEsculeosideB.summaries
+sink()
+
+#Total
+Total.models = TotalResults[ , -grep("Total", names(TotalResults))] %>%
+  map(~ lm(TotalResults$Total ~ .x -1))
+
+sink("TotalSummaries.csv")
+Total.summaries<-lapply(Total.models, summary)
+Total.summaries
+sink()
+
+```
+## Some extra code to merge in genetic position info
+```{r, echo=FALSE}
+setwd("/Users/tomato/Box/michael dzakovich/alkaloids panel/diversity panel paper/RCodeAndData/GWAS/BlancaGWAS_Results")
+
+BlancaResults<-read.csv("Blanca_GWAS_METAB_QK_LogP_Processed.csv", header=T)
+BlancaResults<-BlancaResults[,c(1,3)]
+BlancaGenPos<-read.csv("SolCAP_LOCUS_positions3.csv", header=T)
+
+NewBlanca<-merge(BlancaGenPos, BlancaResults, by="LOCUS")
+write.csv(NewBlanca, "BlancaMarkercM.csv")
+
+
+
+
+```
+
+```{r, echo=FALSE}
+setwd("/Users/tomato/Box/michael dzakovich/alkaloids panel/diversity panel paper/RCodeAndData/GWAS/BlancaGWAS_Results")
+
+BlancaSMT<-read.csv("BlancaSMT_BeforecM.csv", header=T)
+
+FinalBlancacM<-merge(BlancaSMT, NewBlanca, by="LOCUS")
+
+write.csv(FinalBlancacM, "FinalBlancacM.csv")
+
+
+
+```
+##Some extra code I used for curating allele frequencies
+```{r}
+
+setwd("/Users/tomato/Box/michael dzakovich/alkaloids panel/diversity panel paper/RCodeAndData/GWAS/BlancaGWAS_Results")
+
+RareAlleles<-read.csv("MarkersRareAlleleSig.csv", header=T)
+AlleleFreqs<-read.csv("AlleleFrequencies.csv")
+
+RareAlleleFreqs<-merge(AlleleFreqs, RareAlleles, by="Marker")
+
+write.csv(RareAlleleFreqs, "RareAlleleFrequencies.csv")
+
+###
+
+FullList<-read.csv("FDRCorrectedPValues_Blanca_NegLog10PValues_MetaData.csv", header=T)
+VIPList<-read.csv("FilteredSNPs_10PctMAF_Markers.csv", header=T)
+
+FinalGWASData<-merge(FullList, VIPList, by="MARKER")
+
+write.csv(FinalGWASData,"FDRCorrectedPValues_Blanca_NegLog10PValues_MetaData_MAF10.csv", row.names = FALSE)
+
+
+
+```
